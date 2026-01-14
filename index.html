@@ -13,13 +13,20 @@
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 100vh; }
+
+    /* Date picker: move right and keep below Leaflet controls */
     #date {
       position: absolute;
       top: 10px;
-      left: 80px; /* moves it right of zoom buttons */
-      z-index: 1000;
+      left: 120px;   /* more space for toolbar/zoom */
+      z-index: 500;  /* lower than Leaflet controls */
       padding: 4px;
       font-size: 14px;
+    }
+
+    /* Keep Leaflet controls (zoom + draw toolbar) above other elements */
+    .leaflet-top.leaflet-left {
+      z-index: 900;
     }
   </style>
 </head>
@@ -35,7 +42,7 @@
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
 <!-- Your app (cache-busted) -->
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 
 </body>
 </html>
