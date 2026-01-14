@@ -4,11 +4,12 @@ const map = L.map("map", {
 }).setView([20, 0], 2);
 
 // Clamp latitude so you can't drift vertically into empty space
-map.on("move", () => {
+map.on("moveend", () => {
   const c = map.getCenter();
   const clampedLat = Math.max(-85, Math.min(85, c.lat));
   if (c.lat !== clampedLat) map.panTo([clampedLat, c.lng], { animate: false });
 });
+
 
 
 
