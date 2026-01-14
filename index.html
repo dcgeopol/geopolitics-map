@@ -14,12 +14,12 @@
     body { margin: 0; font-family: sans-serif; }
     #map { height: 100vh; }
 
-    /* Date picker: move right and keep below Leaflet controls */
+    /* Date picker */
     #date {
       position: absolute;
       top: 10px;
-      left: 120px;   /* more space for toolbar/zoom */
-      z-index: 500;  /* lower than Leaflet controls */
+      left: 120px;
+      z-index: 500;
       padding: 4px;
       font-size: 14px;
     }
@@ -28,21 +28,29 @@
     .leaflet-top.leaflet-left {
       z-index: 900;
     }
+
+    /* Style panel */
+    #stylePanel{
+      position:absolute;
+      top:50px;
+      left:120px;
+      z-index:600;
+      background: rgba(255,255,255,0.95);
+      padding:8px;
+      border-radius:10px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      font-size:12px;
+      max-width: calc(100vw - 150px);
+    }
+    #stylePanel label{ display:flex; gap:6px; align-items:center; }
+    #stylePanel input[type="number"]{ width:70px; }
   </style>
 </head>
 <body>
 
 <input type="date" id="date" />
-<div id="map"></div>
 
-<!-- Leaflet -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- Leaflet Draw -->
-<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-<!-- Your app (cache-busted) -->
-<script src="app.js?v=10"></script>
-
-</body>
-</html>
+<div i
