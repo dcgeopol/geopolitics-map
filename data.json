@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-01-13",
+    "country": "China",
+    "type": "Military",
+    "text": "Exercises near Taiwan",
+    "coords": [35, 103]
+  },
+  {
+    "date": "2026-01-13",
+    "country": "Russia",
+    "type": "Energy",
+    "text": "Gas exports reduced to Europe",
+    "coords": [60, 100]
+  }
+]
