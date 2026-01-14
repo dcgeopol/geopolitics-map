@@ -20,7 +20,9 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
 
+const markerLayer = L.layerGroup().addTo(map);
 let markers = [];
+
 
 fetch("data.json")
   .then(res => res.json())
