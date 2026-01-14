@@ -4,7 +4,6 @@ const map = L.map("map", {
   zoomDelta: 0.25
 }).setView([20, 0], 2);
 
-
 // Clamp latitude + normalize longitude (cylinder behavior, no wrap-jump blink)
 map.on("moveend", () => {
   const c = map.getCenter();
@@ -23,17 +22,51 @@ map.on("moveend", () => {
   }
 });
 
-
-
-
-
-
-
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
 
-// === DRAW / ANNOTATION LAYER ===
+// ===== STYLE PANEL HELPERS =====
+function currentStyle() {
+  const strokeColor = document.getElementById("strokeColor").value;
+  const strokeWidth = +document.getElementById("strokeWidth").value;
+  const strokeOpacity = +document.getElementById("strokeOpacity").value;
+
+  const useFill = document.getElementById("useFill").checked;
+  const fillColor = document.getElementById("fillColor").value;
+  const fillOpacity = +document.getElementById("fillOpacity").value;
+
+  return {
+    color: strokeColor,
+    weight: strokeWidth,
+    opacity: strokeOpacity,
+    fill: useFill,
+    fillColor: fillColor,
+    fillOpacity: fillOpacity
+  };
+}
+
+function markerStyle() {
+  const base = currentStyle();
+  return {
+    ...base,
+    radius: +document.getElementById("markerRadius").value,
+    weight: +document.getElementById("markerBorder").value
+  };
+}
+
+// Toggle panel button
+const toggleBtn = document.getElementById("toggleStyle");
+const stylePanel = document.getElementById("stylePanel");
+if (toggleBtn && stylePanel) {
+  toggleBtn.onclick = () => {
+    stylePanel.style.display = (stylePanel.style.display === "none" || !stylePanel.style.display)
+      ? "flex"
+      : "none";
+  };
+}
+
+// ===== DRAW / ANNOTATION LAYER =====
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
 
@@ -52,15 +85,30 @@ const drawControl = new L.Control.Draw({
 
 map.addControl(drawControl);
 
-// When a shape is drawn, add it to the map
+// Auto-show the style panel when you start drawing
+map.on("draw:drawstart", () => {
+  if (stylePanel) stylePanel.style.display = "flex";
+});
+
+// When a shape is drawn, apply current styles
 map.on(L.Draw.Event.CREATED, function (e) {
-  const layer = e.layer;
+  let layer = e.layer;
+
+  // Convert draw "marker" into a CircleMarker so you can style radius/border/fill
+  if (e.layerType === "marker") {
+    const ll = layer.getLatLng();
+    layer = L.circleMarker([ll.lat, ll.lng], markerStyle());
+  } else {
+    // Lines/polygons/rectangles
+    layer.setStyle(currentStyle());
+  }
+
   drawnItems.addLayer(layer);
 });
 
+// ===== EVENT MARKERS (from data.json) =====
 const markerLayer = L.layerGroup().addTo(map);
 let markers = [];
-
 
 fetch("data.json")
   .then(res => res.json())
@@ -69,22 +117,22 @@ fetch("data.json")
     dateInput.value = "2026-01-13";
 
     function render(date) {
-     markerLayer.clearLayers();
-markers = [];
+      markerLayer.clearLayers();
+      markers = [];
 
-data.filter(d => d.date === date).forEach(d => {
-  // 3 wrapped copies so markers persist across world wrap (cylinder effect)
-  const [lat, lng] = d.coords;
-  [-360, 0, 360].forEach(offset => {
-    const m = L.marker([lat, lng + offset])
-      .addTo(markerLayer)
-      .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
-    markers.push(m);
-  });
-});
-
+      data.filter(d => d.date === date).forEach(d => {
+        // 3 wrapped copies so markers persist across world wrap (cylinder effect)
+        const [lat, lng] = d.coords;
+        [-360, 0, 360].forEach(offset => {
+          const m = L.marker([lat, lng + offset])
+            .addTo(markerLayer)
+            .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
+          markers.push(m);
+        });
+      });
     }
 
     render(dateInput.value);
     dateInput.addEventListener("change", e => render(e.target.value));
   });
+
