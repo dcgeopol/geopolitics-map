@@ -1,9 +1,15 @@
 const map = L.map("map", {
-  worldCopyJump: true,               // <- key: only one world visible while panning wraps
-  minZoom: 2,                        // prevents zooming out to see repeated worlds
-  maxBounds: [[-85, -180], [85, 180]],
-  maxBoundsViscosity: 1.0
+  worldCopyJump: true, // wrap like a cylinder but keep one world visible
+  minZoom: 2
 }).setView([20, 0], 2);
+
+// Clamp latitude so you can't drift vertically into empty space
+map.on("move", () => {
+  const c = map.getCenter();
+  const clampedLat = Math.max(-85, Math.min(85, c.lat));
+  if (c.lat !== clampedLat) map.panTo([clampedLat, c.lng], { animate: false });
+});
+
 
 
 
