@@ -1,7 +1,11 @@
 const map = L.map("map", {
-  maxBounds: [[-90, -180], [90, 180]], // prevents horizontal/vertical repeat
-  maxBoundsViscosity: 1.0
+  minZoom: 2,
+  maxZoom: 18,
+  maxBounds: [[-90, -180], [90, 180]], // limits map to real-world
+  maxBoundsViscosity: 1.0,            // bounce back if you try to pan outside
+  worldCopyJump: false                 // disables horizontal repeat
 }).setView([20, 0], 2);
+
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
