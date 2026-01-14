@@ -1,4 +1,7 @@
-const map = L.map("map").setView([20, 0], 2);
+const map = L.map("map", {
+  maxBounds: [[-90, -180], [90, 180]], // prevents horizontal/vertical repeat
+  maxBoundsViscosity: 1.0
+}).setView([20, 0], 2);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
