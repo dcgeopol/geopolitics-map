@@ -33,6 +33,31 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
 
+// === DRAW / ANNOTATION LAYER ===
+const drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+const drawControl = new L.Control.Draw({
+  draw: {
+    polyline: true,
+    polygon: true,
+    rectangle: true,
+    circle: false,
+    marker: true
+  },
+  edit: {
+    featureGroup: drawnItems
+  }
+});
+
+map.addControl(drawControl);
+
+// When a shape is drawn, add it to the map
+map.on(L.Draw.Event.CREATED, function (e) {
+  const layer = e.layer;
+  drawnItems.addLayer(layer);
+});
+
 const markerLayer = L.layerGroup().addTo(map);
 let markers = [];
 
