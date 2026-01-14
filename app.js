@@ -1,16 +1,28 @@
 const map = L.map("map", {
-  worldCopyJump: true,
   minZoom: 2,
-  zoomSnap: 0.25,   // quarter-step zoom
-  zoomDelta: 0.25   // +/- buttons zoom by quarter-step
+  zoomSnap: 0.25,   // smaller zoom increments
+  zoomDelta: 0.25
 }).setView([20, 0], 2);
 
-// Clamp latitude so you can't drift vertically into empty space
+
+// Clamp latitude + normalize longitude (cylinder behavior, no wrap-jump blink)
 map.on("moveend", () => {
   const c = map.getCenter();
+
+  // clamp latitude
   const clampedLat = Math.max(-85, Math.min(85, c.lat));
-  if (c.lat !== clampedLat) map.panTo([clampedLat, c.lng], { animate: false });
+
+  // normalize longitude into [-180, 180]
+  let lng = c.lng;
+  while (lng > 180) lng -= 360;
+  while (lng < -180) lng += 360;
+
+  // only pan if something changed
+  if (clampedLat !== c.lat || lng !== c.lng) {
+    map.panTo([clampedLat, lng], { animate: false });
+  }
 });
+
 
 
 
