@@ -15,7 +15,6 @@ map.on("moveend", () => {
 
 
 
-
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
@@ -31,12 +30,12 @@ fetch("data.json")
     dateInput.value = "2026-01-13";
 
     function render(date) {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
+     markerLayer.clearLayers();
+markers = [];
 
       data.filter(d => d.date === date).forEach(d => {
         const m = L.marker(d.coords)
-          .addTo(map)
+          .addTo(markerLayer)
           .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
         markers.push(m);
       });
@@ -45,3 +44,10 @@ fetch("data.json")
     render(dateInput.value);
     dateInput.addEventListener("change", e => render(e.target.value));
   });
+function redrawMarkers() {
+  // Force Leaflet to re-render markers after wrap/jump
+  markerLayer.remove();
+  markerLayer.addTo(map);
+}
+
+map.on("moveend zoomend", redrawMarkers);
