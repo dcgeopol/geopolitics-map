@@ -3,18 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <title>Geopolitical Map</title>
+
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Leaflet Draw -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 100vh; }
     #date {
-  position: absolute;
-  top: 10px;
-  left: 80px; /* moves it right of zoom buttons */
-  z-index: 1000;
-  padding: 4px;
-  font-size: 14px;
-}
+      position: absolute;
+      top: 10px;
+      left: 80px; /* moves it right of zoom buttons */
+      z-index: 1000;
+      padding: 4px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -22,9 +28,14 @@
 <input type="date" id="date" />
 <div id="map"></div>
 
+<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js?v=6"></script>
 
+<!-- Leaflet Draw -->
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<!-- Your app (cache-busted) -->
+<script src="app.js?v=7"></script>
 
 </body>
 </html>
