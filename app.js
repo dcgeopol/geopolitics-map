@@ -33,12 +33,17 @@ fetch("data.json")
      markerLayer.clearLayers();
 markers = [];
 
-      data.filter(d => d.date === date).forEach(d => {
-        const m = L.marker(d.coords)
-          .addTo(markerLayer)
-          .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
-        markers.push(m);
-      });
+data.filter(d => d.date === date).forEach(d => {
+  // 3 wrapped copies so markers persist across world wrap (cylinder effect)
+  const [lat, lng] = d.coords;
+  [-360, 0, 360].forEach(offset => {
+    const m = L.marker([lat, lng + offset])
+      .addTo(markerLayer)
+      .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
+    markers.push(m);
+  });
+});
+
     }
 
     render(dateInput.value);
