@@ -49,10 +49,3 @@ data.filter(d => d.date === date).forEach(d => {
     render(dateInput.value);
     dateInput.addEventListener("change", e => render(e.target.value));
   });
-function redrawMarkers() {
-  // Force Leaflet to re-render markers after wrap/jump
-  markerLayer.remove();
-  markerLayer.addTo(map);
-}
-
-map.on("moveend zoomend", redrawMarkers);
