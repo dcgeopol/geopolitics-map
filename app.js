@@ -1,10 +1,10 @@
 const map = L.map("map", {
-  minZoom: 2,
-  maxZoom: 18,
-  maxBounds: [[-90, -180], [90, 180]], // limits map to real-world
-  maxBoundsViscosity: 1.0,            // bounce back if you try to pan outside
-  worldCopyJump: false                 // disables horizontal repeat
+  worldCopyJump: true,               // <- key: only one world visible while panning wraps
+  minZoom: 2,                        // prevents zooming out to see repeated worlds
+  maxBounds: [[-85, -180], [85, 180]],
+  maxBoundsViscosity: 1.0
 }).setView([20, 0], 2);
+
 
 
 
