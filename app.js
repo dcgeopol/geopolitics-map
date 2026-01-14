@@ -1,6 +1,8 @@
 const map = L.map("map", {
-  worldCopyJump: true, // wrap like a cylinder but keep one world visible
-  minZoom: 2
+  worldCopyJump: true,
+  minZoom: 2,
+  zoomSnap: 0.25,   // quarter-step zoom
+  zoomDelta: 0.25   // +/- buttons zoom by quarter-step
 }).setView([20, 0], 2);
 
 // Clamp latitude so you can't drift vertically into empty space
