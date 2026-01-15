@@ -22,7 +22,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
 
-// ===== STYLE PANEL HELPERS =====
+// ===== STYLE PANEL =====
 function currentStyle() {
   return {
     color: document.getElementById("strokeColor").value,
@@ -33,7 +33,6 @@ function currentStyle() {
     fillOpacity: +document.getElementById("fillOpacity").value
   };
 }
-
 function markerStyle() {
   const s = currentStyle();
   return {
@@ -43,7 +42,6 @@ function markerStyle() {
   };
 }
 
-// ===== UI (Style toggle) =====
 const toggleBtn = document.getElementById("toggleStyle");
 const stylePanel = document.getElementById("stylePanel");
 if (toggleBtn && stylePanel) {
@@ -54,42 +52,60 @@ if (toggleBtn && stylePanel) {
   });
 }
 
-// ===== DRAW / ANNOTATION LAYER =====
+// ===== DRAW LAYERS =====
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
 
-// Undo stack
 const undoStack = [];
-
-// Selected layer (for restyling)
 let selectedLayer = null;
+
 function setSelected(layer) {
   selectedLayer = layer;
 }
 
-// Apply style to a layer
+// Store/reapply style so it DOESN’T revert after “Save”
+function storeStyle(layer) {
+  if (!layer) return;
+  if (layer instanceof L.CircleMarker) {
+    layer.__savedStyle = markerStyle();
+  } else {
+    layer.__savedStyle = currentStyle();
+  }
+}
+function reapplyStoredStyle(layer) {
+  if (!layer || !layer.__savedStyle) return;
+  if (layer instanceof L.CircleMarker) {
+    layer.setStyle(layer.__savedStyle);
+    if (typeof layer.__savedStyle.radius === "number") layer.setRadius(layer.__savedStyle.radius);
+  } else if (layer.setStyle) {
+    layer.setStyle(layer.__savedStyle);
+  }
+}
+
 function applyStyleToLayer(layer) {
   if (!layer) return;
 
   if (layer instanceof L.CircleMarker) {
-    layer.setStyle(markerStyle());
+    const s = markerStyle();
+    layer.setStyle(s);
     layer.setRadius(+document.getElementById("markerRadius").value);
+    layer.__savedStyle = s; // persist
     return;
   }
 
   if (layer.setStyle) {
-    layer.setStyle(currentStyle());
+    const s = currentStyle();
+    layer.setStyle(s);
+    layer.__savedStyle = s; // persist
   }
 }
 
-// Bind click selection to a layer (so panel changes work)
 function makeSelectable(layer) {
   if (!layer) return;
   layer.off("click");
   layer.on("click", () => setSelected(layer));
 }
 
-// When panel changes, restyle the selected layer (use both input + change)
 [
   "strokeColor","strokeWidth","strokeOpacity",
   "useFill","fillColor","fillOpacity",
@@ -101,7 +117,7 @@ function makeSelectable(layer) {
   el.addEventListener("change", () => applyStyleToLayer(selectedLayer));
 });
 
-// Draw control (NOTE: Leaflet Draw will still show handles, but we will reduce vertices)
+// ===== Leaflet Draw controls =====
 const drawControl = new L.Control.Draw({
   draw: {
     polyline: true,
@@ -116,26 +132,23 @@ const drawControl = new L.Control.Draw({
 });
 map.addControl(drawControl);
 
-// Auto-show style panel when drawing starts
 map.on("draw:drawstart", () => {
   if (stylePanel) stylePanel.style.display = "flex";
 });
 
-// ===== Polyline simplification (reduces edit handles) =====
-function simplifyPolylineLayer(layer, tolerancePx = 6) {
+// ===== Simplify helpers (reduces handles) =====
+function simplifyPolylineLayer(layer, tolerancePx = 18) {
   if (!layer || !layer.getLatLngs) return;
   const latlngs = layer.getLatLngs();
   if (!Array.isArray(latlngs) || latlngs.length < 3) return;
 
-  // Convert to pixel points, simplify, convert back
   const pts = latlngs.map(ll => map.latLngToLayerPoint(ll));
   const simplified = L.LineUtil.simplify(pts, tolerancePx);
   const newLatLngs = simplified.map(p => map.layerPointToLatLng(p));
-
   layer.setLatLngs(newLatLngs);
 }
 
-// When a shape is drawn, apply current styles + make selectable + simplify polylines
+// ===== Created shapes =====
 map.on(L.Draw.Event.CREATED, function (e) {
   let layer = e.layer;
 
@@ -146,31 +159,58 @@ map.on(L.Draw.Event.CREATED, function (e) {
     layer.setStyle(currentStyle());
   }
 
-  // Reduce handles for drawn polylines
-  if (e.layerType === "polyline") {
-    simplifyPolylineLayer(layer, 6);
-  }
+  // Reduce handles for regular polylines
+  if (e.layerType === "polyline") simplifyPolylineLayer(layer, 16);
 
   makeSelectable(layer);
-
   drawnItems.addLayer(layer);
+
+  // Persist style snapshot
+  storeStyle(layer);
+
   undoStack.push(layer);
   setSelected(layer);
 });
 
-// After edits are saved, rebind selection and keep styles (and simplify edited polylines)
+// ===== Edit mode: enable dragging whole shapes/lines (Path.Drag) =====
+function enablePathDragging(layer) {
+  // Leaflet.Path.Drag adds .dragging to vector layers (Polyline/Polygon/CircleMarker)
+  if (layer && layer.dragging && layer.dragging.enable) layer.dragging.enable();
+}
+function disablePathDragging(layer) {
+  if (layer && layer.dragging && layer.dragging.disable) layer.dragging.disable();
+}
+
+map.on("draw:editstart", () => {
+  // Let you drag shapes instead of panning the map
+  map.dragging.disable();
+  drawnItems.eachLayer(enablePathDragging);
+});
+
+map.on("draw:editstop", () => {
+  map.dragging.enable();
+  drawnItems.eachLayer(disablePathDragging);
+
+  // Reapply saved style so nothing reverts visually
+  drawnItems.eachLayer(reapplyStoredStyle);
+});
+
+// When you hit Save after editing vertices: simplify + reapply stored style
 map.on("draw:edited", (evt) => {
   evt.layers.eachLayer((layer) => {
     makeSelectable(layer);
-    // Keep whatever style you want: apply current panel style to selected only,
-    // but simplify any polyline edits to prevent handle explosion
+
+    // If it’s a polyline, reduce handles again after edit
     if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      simplifyPolylineLayer(layer, 6);
+      simplifyPolylineLayer(layer, 16);
     }
+
+    // Keep the style you last set (prevents “revert”)
+    reapplyStoredStyle(layer);
   });
 });
 
-// ===== UNDO BUTTON =====
+// ===== UNDO =====
 const undoBtn = document.getElementById("undoBtn");
 if (undoBtn) {
   undoBtn.addEventListener("click", (e) => {
@@ -183,11 +223,11 @@ if (undoBtn) {
   });
 }
 
-// ===== FREE DRAW (reduced points + simplify) =====
+// ===== FREE DRAW (reduced points + aggressive simplify) =====
 let freeDrawEnabled = false;
-let activeLine = null;
 let drawing = false;
-let lastAddedPoint = null;
+let activeLine = null;
+let lastPointPx = null;
 
 const freeDrawBtn = document.getElementById("freeDrawBtn");
 if (freeDrawBtn) {
@@ -198,14 +238,14 @@ if (freeDrawBtn) {
 
     if (freeDrawEnabled && stylePanel) stylePanel.style.display = "flex";
 
-    // Draw mode: disable dragging so finger/mouse draws
+    // In free draw mode, disable map drag so finger draws
     if (freeDrawEnabled) map.dragging.disable();
     else map.dragging.enable();
   });
 }
 
-// Only add a new point if we moved at least N pixels (prevents huge vertex counts)
-const MIN_POINT_DIST_PX = 10;
+// MUCH larger spacing => far fewer vertices
+const MIN_POINT_DIST_PX = 30;
 
 function startFreeDraw(e) {
   if (!freeDrawEnabled) return;
@@ -216,7 +256,10 @@ function startFreeDraw(e) {
   makeSelectable(activeLine);
   setSelected(activeLine);
 
-  lastAddedPoint = map.latLngToLayerPoint(ll);
+  // persist style snapshot
+  storeStyle(activeLine);
+
+  lastPointPx = map.latLngToLayerPoint(ll);
 }
 
 function moveFreeDraw(e) {
@@ -225,9 +268,9 @@ function moveFreeDraw(e) {
   const ll = e.latlng;
   const p = map.latLngToLayerPoint(ll);
 
-  if (!lastAddedPoint || p.distanceTo(lastAddedPoint) >= MIN_POINT_DIST_PX) {
+  if (!lastPointPx || p.distanceTo(lastPointPx) >= MIN_POINT_DIST_PX) {
     activeLine.addLatLng(ll);
-    lastAddedPoint = p;
+    lastPointPx = p;
   }
 }
 
@@ -235,12 +278,12 @@ function endFreeDraw() {
   if (!freeDrawEnabled || !drawing || !activeLine) return;
   drawing = false;
 
-  // Simplify line to reduce edit handles
-  simplifyPolylineLayer(activeLine, 8);
+  // Aggressive simplify => no centipede handles
+  simplifyPolylineLayer(activeLine, 26);
 
   undoStack.push(activeLine);
   activeLine = null;
-  lastAddedPoint = null;
+  lastPointPx = null;
 }
 
 map.on("mousedown touchstart", startFreeDraw);
@@ -249,7 +292,6 @@ map.on("mouseup touchend touchcancel", endFreeDraw);
 
 // ===== EVENT MARKERS (from data.json) =====
 const markerLayer = L.layerGroup().addTo(map);
-let markers = [];
 
 fetch("data.json")
   .then(res => res.json())
@@ -259,15 +301,13 @@ fetch("data.json")
 
     function render(date) {
       markerLayer.clearLayers();
-      markers = [];
 
       data.filter(d => d.date === date).forEach(d => {
         const [lat, lng] = d.coords;
         [-360, 0, 360].forEach(offset => {
-          const m = L.marker([lat, lng + offset])
+          L.marker([lat, lng + offset])
             .addTo(markerLayer)
             .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
-          markers.push(m);
         });
       });
     }
