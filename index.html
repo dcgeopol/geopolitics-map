@@ -24,17 +24,17 @@
       font-size: 14px;
     }
 
-    /* Buttons */
-    #toggleStyle, #undoBtn, #freeDrawBtn{
-      position:absolute;
-      top:10px;
-      z-index:700;
-      padding:4px 8px;
-      border-radius:10px;
-      border:1px solid #ccc;
-      background: rgba(255,255,255,0.95);
-      cursor:pointer;
-    }
+#toggleStyle, #undoBtn, #freeDrawBtn, #moveBtn{
+  position:absolute;
+  top:50px;   /* ⬅ pushes buttons down below zoom controls */
+  z-index:700;
+  padding:4px 8px;
+  border-radius:10px;
+  border:1px solid #ccc;
+  background: rgba(255,255,255,0.95);
+  cursor:pointer;
+}
+
     #toggleStyle{ left: 260px; }
     #undoBtn{ left: 330px; }
     #freeDrawBtn{ left: 400px; }
