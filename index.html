@@ -46,21 +46,24 @@
     }
 
     /* Style panel */
-    #stylePanel{
-      position:absolute;
-      top:90px;         /* below buttons */
-      left:120px;
-      z-index:600;
-      background: rgba(255,255,255,0.95);
-      padding:8px;
-      border-radius:10px;
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      font-size:12px;
-      max-width: calc(100vw - 150px);
-    }
+   /* Style panel: top-right + starts hidden (toggle with Style button) */
+#stylePanel{
+  position:absolute;
+  top:10px;
+  right:10px;
+  left:auto;
+  z-index:800;
+  background: rgba(255,255,255,0.95);
+  padding:8px;
+  border-radius:10px;
+  display:none;              /* <-- hidden by default */
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+  font-size:12px;
+  max-width: min(720px, calc(100vw - 20px));
+}
+
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
   </style>
