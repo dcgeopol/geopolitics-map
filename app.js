@@ -59,21 +59,14 @@ map.addLayer(drawnItems);
 const undoStack = [];
 let selectedLayer = null;
 
-function setSelected(layer) {
-  selectedLayer = layer;
-}
-
 // Store/reapply style so it DOESN’T revert after “Save”
 function storeStyle(layer) {
   if (!layer) return;
-  if (layer instanceof L.CircleMarker) {
-    layer.__savedStyle = markerStyle();
-  } else {
-    layer.__savedStyle = currentStyle();
-  }
+  layer.__savedStyle = (layer instanceof L.CircleMarker) ? markerStyle() : currentStyle();
 }
 function reapplyStoredStyle(layer) {
   if (!layer || !layer.__savedStyle) return;
+
   if (layer instanceof L.CircleMarker) {
     layer.setStyle(layer.__savedStyle);
     if (typeof layer.__savedStyle.radius === "number") layer.setRadius(layer.__savedStyle.radius);
@@ -89,14 +82,14 @@ function applyStyleToLayer(layer) {
     const s = markerStyle();
     layer.setStyle(s);
     layer.setRadius(+document.getElementById("markerRadius").value);
-    layer.__savedStyle = s; // persist
+    layer.__savedStyle = s;
     return;
   }
 
   if (layer.setStyle) {
     const s = currentStyle();
     layer.setStyle(s);
-    layer.__savedStyle = s; // persist
+    layer.__savedStyle = s;
   }
 }
 
@@ -106,6 +99,52 @@ function makeSelectable(layer) {
   layer.on("click", () => setSelected(layer));
 }
 
+// ===== MOVE MODE (drag whole shape/line) =====
+let moveEnabled = false;
+const moveBtn = document.getElementById("moveBtn");
+
+function canDragLayer(layer) {
+  return layer && layer.dragging && layer.dragging.enable && layer.dragging.disable;
+}
+
+function setMoveMode(on) {
+  moveEnabled = on;
+  if (moveBtn) moveBtn.textContent = on ? "Move: ON" : "Move";
+
+  // Turn off map panning while moving shapes
+  if (on) map.dragging.disable();
+  else map.dragging.enable();
+
+  // Only drag the selected layer
+  drawnItems.eachLayer(l => {
+    if (canDragLayer(l)) l.dragging.disable();
+  });
+
+  if (on && selectedLayer && canDragLayer(selectedLayer)) {
+    selectedLayer.dragging.enable();
+  }
+}
+
+if (moveBtn) {
+  moveBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    setMoveMode(!moveEnabled);
+  });
+}
+
+function setSelected(layer) {
+  selectedLayer = layer;
+
+  // If Move mode is on, switch dragging to the newly selected layer
+  if (moveEnabled) {
+    drawnItems.eachLayer(l => {
+      if (canDragLayer(l)) l.dragging.disable();
+    });
+    if (selectedLayer && canDragLayer(selectedLayer)) selectedLayer.dragging.enable();
+  }
+}
+
+// Panel changes restyle selected layer (input + change)
 [
   "strokeColor","strokeWidth","strokeOpacity",
   "useFill","fillColor","fillOpacity",
@@ -137,7 +176,7 @@ map.on("draw:drawstart", () => {
 });
 
 // ===== Simplify helpers (reduces handles) =====
-function simplifyPolylineLayer(layer, tolerancePx = 18) {
+function simplifyPolylineLayer(layer, tolerancePx = 8) {
   if (!layer || !layer.getLatLngs) return;
   const latlngs = layer.getLatLngs();
   if (!Array.isArray(latlngs) || latlngs.length < 3) return;
@@ -159,8 +198,8 @@ map.on(L.Draw.Event.CREATED, function (e) {
     layer.setStyle(currentStyle());
   }
 
-  // Reduce handles for regular polylines
-  if (e.layerType === "polyline") simplifyPolylineLayer(layer, 16);
+  // Reduce handles for regular polylines a bit
+  if (e.layerType === "polyline") simplifyPolylineLayer(layer, 8);
 
   makeSelectable(layer);
   drawnItems.addLayer(layer);
@@ -170,42 +209,27 @@ map.on(L.Draw.Event.CREATED, function (e) {
 
   undoStack.push(layer);
   setSelected(layer);
+
+  // If move mode already ON, enable dragging for this selected layer (if supported)
+  if (moveEnabled && canDragLayer(layer)) layer.dragging.enable();
 });
 
-// ===== Edit mode: enable dragging whole shapes/lines (Path.Drag) =====
-function enablePathDragging(layer) {
-  // Leaflet.Path.Drag adds .dragging to vector layers (Polyline/Polygon/CircleMarker)
-  if (layer && layer.dragging && layer.dragging.enable) layer.dragging.enable();
-}
-function disablePathDragging(layer) {
-  if (layer && layer.dragging && layer.dragging.disable) layer.dragging.disable();
-}
-
-map.on("draw:editstart", () => {
-  // Let you drag shapes instead of panning the map
-  map.dragging.disable();
-  drawnItems.eachLayer(enablePathDragging);
-});
-
+// ===== Edit lifecycle: keep style from reverting =====
 map.on("draw:editstop", () => {
-  map.dragging.enable();
-  drawnItems.eachLayer(disablePathDragging);
-
   // Reapply saved style so nothing reverts visually
   drawnItems.eachLayer(reapplyStoredStyle);
 });
 
-// When you hit Save after editing vertices: simplify + reapply stored style
 map.on("draw:edited", (evt) => {
   evt.layers.eachLayer((layer) => {
     makeSelectable(layer);
 
-    // If it’s a polyline, reduce handles again after edit
+    // If it’s a polyline, simplify again after edit
     if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      simplifyPolylineLayer(layer, 16);
+      simplifyPolylineLayer(layer, 8);
     }
 
-    // Keep the style you last set (prevents “revert”)
+    // Reapply saved style (prevents revert)
     reapplyStoredStyle(layer);
   });
 });
@@ -223,11 +247,14 @@ if (undoBtn) {
   });
 }
 
-// ===== FREE DRAW (reduced points + aggressive simplify) =====
+// ===== FREE DRAW (smoother curves) =====
 let freeDrawEnabled = false;
 let drawing = false;
 let activeLine = null;
 let lastPointPx = null;
+
+// Smaller spacing => smoother lines (less “octagon”)
+const MIN_POINT_DIST_PX = 10;
 
 const freeDrawBtn = document.getElementById("freeDrawBtn");
 if (freeDrawBtn) {
@@ -240,12 +267,9 @@ if (freeDrawBtn) {
 
     // In free draw mode, disable map drag so finger draws
     if (freeDrawEnabled) map.dragging.disable();
-    else map.dragging.enable();
+    else if (!moveEnabled) map.dragging.enable();
   });
 }
-
-// MUCH larger spacing => far fewer vertices
-const MIN_POINT_DIST_PX = 30;
 
 function startFreeDraw(e) {
   if (!freeDrawEnabled) return;
@@ -256,9 +280,7 @@ function startFreeDraw(e) {
   makeSelectable(activeLine);
   setSelected(activeLine);
 
-  // persist style snapshot
   storeStyle(activeLine);
-
   lastPointPx = map.latLngToLayerPoint(ll);
 }
 
@@ -278,8 +300,8 @@ function endFreeDraw() {
   if (!freeDrawEnabled || !drawing || !activeLine) return;
   drawing = false;
 
-  // Aggressive simplify => no centipede handles
-  simplifyPolylineLayer(activeLine, 26);
+  // Light simplify => smooth curves but fewer handles
+  simplifyPolylineLayer(activeLine, 8);
 
   undoStack.push(activeLine);
   activeLine = null;
