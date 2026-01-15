@@ -8,15 +8,12 @@ const map = L.map("map", {
 map.on("moveend", () => {
   const c = map.getCenter();
 
-  // clamp latitude
   const clampedLat = Math.max(-85, Math.min(85, c.lat));
 
-  // normalize longitude into [-180, 180]
   let lng = c.lng;
   while (lng > 180) lng -= 360;
   while (lng < -180) lng += 360;
 
-  // only pan if something changed
   if (clampedLat !== c.lat || lng !== c.lng) {
     map.panTo([clampedLat, lng], { animate: false });
   }
@@ -70,6 +67,10 @@ if (toggleBtn && stylePanel) {
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
 
+// Undo stack for drawings
+const undoStack = [];
+
+// Draw control with style defaults (uses your current panel settings at draw time)
 const drawControl = new L.Control.Draw({
   draw: {
     polyline: true,
@@ -99,12 +100,52 @@ map.on(L.Draw.Event.CREATED, function (e) {
     const ll = layer.getLatLng();
     layer = L.circleMarker([ll.lat, ll.lng], markerStyle());
   } else {
-    // Lines/polygons/rectangles
     layer.setStyle(currentStyle());
   }
 
   drawnItems.addLayer(layer);
+  undoStack.push(layer);
 });
+
+// ===== UNDO BUTTON =====
+const undoBtn = document.getElementById("undoBtn");
+if (undoBtn) {
+  undoBtn.onclick = () => {
+    const last = undoStack.pop();
+    if (last) drawnItems.removeLayer(last);
+  };
+}
+
+// ===== FREE DRAW TOOL (FINGER/MOUSE) =====
+let freehand = null;
+let freehandEnabled = false;
+
+const freeDrawBtn = document.getElementById("freeDrawBtn");
+if (freeDrawBtn) {
+  freeDrawBtn.onclick = () => {
+    freehandEnabled = !freehandEnabled;
+    freeDrawBtn.textContent = freehandEnabled ? "Free Draw: ON" : "Free Draw";
+
+    if (freehandEnabled) {
+      if (!freehand) {
+        freehand = new L.FreeHandShapes({
+          polyline: currentStyle(),
+          polygon: currentStyle()
+        }).addTo(map);
+
+        freehand.on("drawing:complete", (e) => {
+          // Add finished freehand drawing into your editable layer group
+          if (e.layer && e.layer.setStyle) e.layer.setStyle(currentStyle());
+          drawnItems.addLayer(e.layer);
+          undoStack.push(e.layer);
+        });
+      }
+      freehand.setMode(true);
+    } else {
+      if (freehand) freehand.setMode(false);
+    }
+  };
+}
 
 // ===== EVENT MARKERS (from data.json) =====
 const markerLayer = L.layerGroup().addTo(map);
@@ -121,7 +162,6 @@ fetch("data.json")
       markers = [];
 
       data.filter(d => d.date === date).forEach(d => {
-        // 3 wrapped copies so markers persist across world wrap (cylinder effect)
         const [lat, lng] = d.coords;
         [-360, 0, 360].forEach(offset => {
           const m = L.marker([lat, lng + offset])
@@ -135,4 +175,3 @@ fetch("data.json")
     render(dateInput.value);
     dateInput.addEventListener("change", e => render(e.target.value));
   });
-
