@@ -4,336 +4,198 @@ const map = L.map("map", {
   zoomDelta: 0.25
 }).setView([20, 0], 2);
 
-// Clamp latitude + normalize longitude (cylinder behavior, no wrap-jump blink)
+/* ===== Cylinder behavior ===== */
 map.on("moveend", () => {
   const c = map.getCenter();
-  const clampedLat = Math.max(-85, Math.min(85, c.lat));
-
+  const lat = Math.max(-85, Math.min(85, c.lat));
   let lng = c.lng;
   while (lng > 180) lng -= 360;
   while (lng < -180) lng += 360;
-
-  if (clampedLat !== c.lat || lng !== c.lng) {
-    map.panTo([clampedLat, lng], { animate: false });
-  }
+  if (lat !== c.lat || lng !== c.lng) map.panTo([lat, lng], { animate: false });
 });
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
 
-// ===== STYLE PANEL =====
+/* ===== STYLE HELPERS ===== */
 function currentStyle() {
   return {
-    color: document.getElementById("strokeColor").value,
-    weight: +document.getElementById("strokeWidth").value,
-    opacity: +document.getElementById("strokeOpacity").value,
-    fill: document.getElementById("useFill").checked,
-    fillColor: document.getElementById("fillColor").value,
-    fillOpacity: +document.getElementById("fillOpacity").value
+    color: strokeColor.value,
+    weight: +strokeWidth.value,
+    opacity: +strokeOpacity.value,
+    fill: useFill.checked,
+    fillColor: fillColor.value,
+    fillOpacity: +fillOpacity.value
   };
 }
 function markerStyle() {
-  const s = currentStyle();
   return {
-    ...s,
-    radius: +document.getElementById("markerRadius").value,
-    weight: +document.getElementById("markerBorder").value
+    ...currentStyle(),
+    radius: +markerRadius.value,
+    weight: +markerBorder.value
   };
 }
 
-const toggleBtn = document.getElementById("toggleStyle");
+/* ===== UI ===== */
 const stylePanel = document.getElementById("stylePanel");
-if (toggleBtn && stylePanel) {
-  toggleBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    stylePanel.style.display =
-      (stylePanel.style.display === "none" || !stylePanel.style.display) ? "flex" : "none";
-  });
-}
+toggleStyle.onclick = () => {
+  stylePanel.style.display =
+    stylePanel.style.display === "none" ? "flex" : "none";
+};
 
-// ===== DRAW LAYERS =====
-const drawnItems = new L.FeatureGroup();
-map.addLayer(drawnItems);
-
+/* ===== DRAW STORAGE ===== */
+const drawnItems = new L.FeatureGroup().addTo(map);
 const undoStack = [];
 let selectedLayer = null;
 
-// Store/reapply style so it DOESN’T revert after “Save”
+/* ===== STYLE PERSISTENCE ===== */
 function storeStyle(layer) {
+  layer.__style = layer instanceof L.CircleMarker ? markerStyle() : currentStyle();
+}
+function applyStyle(layer) {
   if (!layer) return;
-  layer.__savedStyle = (layer instanceof L.CircleMarker) ? markerStyle() : currentStyle();
+  const s = layer instanceof L.CircleMarker ? markerStyle() : currentStyle();
+  layer.setStyle(s);
+  if (layer instanceof L.CircleMarker) layer.setRadius(s.radius);
+  layer.__style = s;
 }
-function reapplyStoredStyle(layer) {
-  if (!layer || !layer.__savedStyle) return;
-
-  if (layer instanceof L.CircleMarker) {
-    layer.setStyle(layer.__savedStyle);
-    if (typeof layer.__savedStyle.radius === "number") layer.setRadius(layer.__savedStyle.radius);
-  } else if (layer.setStyle) {
-    layer.setStyle(layer.__savedStyle);
-  }
-}
-
-function applyStyleToLayer(layer) {
-  if (!layer) return;
-
-  if (layer instanceof L.CircleMarker) {
-    const s = markerStyle();
-    layer.setStyle(s);
-    layer.setRadius(+document.getElementById("markerRadius").value);
-    layer.__savedStyle = s;
-    return;
-  }
-
-  if (layer.setStyle) {
-    const s = currentStyle();
-    layer.setStyle(s);
-    layer.__savedStyle = s;
-  }
+function restoreStyle(layer) {
+  if (!layer || !layer.__style) return;
+  layer.setStyle(layer.__style);
+  if (layer instanceof L.CircleMarker && layer.__style.radius)
+    layer.setRadius(layer.__style.radius);
 }
 
+/* ===== SELECT ===== */
 function makeSelectable(layer) {
-  if (!layer) return;
-  layer.off("click");
-  layer.on("click", () => setSelected(layer));
+  layer.on("click", () => selectedLayer = layer);
 }
-
-// ===== MOVE MODE (drag whole shape/line) =====
-let moveEnabled = false;
-const moveBtn = document.getElementById("moveBtn");
-
-function canDragLayer(layer) {
-  return layer && layer.dragging && layer.dragging.enable && layer.dragging.disable;
-}
-
-function setMoveMode(on) {
-  moveEnabled = on;
-  if (moveBtn) moveBtn.textContent = on ? "Move: ON" : "Move";
-
-  // Turn off map panning while moving shapes
-  if (on) map.dragging.disable();
-  else map.dragging.enable();
-
-  // Only drag the selected layer
-  drawnItems.eachLayer(l => {
-    if (canDragLayer(l)) l.dragging.disable();
-  });
-
-  if (on && selectedLayer && canDragLayer(selectedLayer)) {
-    selectedLayer.dragging.enable();
-  }
-}
-
-if (moveBtn) {
-  moveBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    setMoveMode(!moveEnabled);
-  });
-}
-
-function setSelected(layer) {
-  selectedLayer = layer;
-
-  // If Move mode is on, switch dragging to the newly selected layer
-  if (moveEnabled) {
-    drawnItems.eachLayer(l => {
-      if (canDragLayer(l)) l.dragging.disable();
-    });
-    if (selectedLayer && canDragLayer(selectedLayer)) selectedLayer.dragging.enable();
-  }
-}
-
-// Panel changes restyle selected layer (input + change)
 [
-  "strokeColor","strokeWidth","strokeOpacity",
-  "useFill","fillColor","fillOpacity",
-  "markerRadius","markerBorder"
-].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener("input", () => applyStyleToLayer(selectedLayer));
-  el.addEventListener("change", () => applyStyleToLayer(selectedLayer));
-});
+  strokeColor, strokeWidth, strokeOpacity,
+  useFill, fillColor, fillOpacity,
+  markerRadius, markerBorder
+].forEach(el => el.oninput = () => applyStyle(selectedLayer));
 
-// ===== Leaflet Draw controls =====
-const drawControl = new L.Control.Draw({
-  draw: {
-    polyline: true,
-    polygon: true,
-    rectangle: true,
-    circle: false,
-    marker: true
-  },
-  edit: {
-    featureGroup: drawnItems
-  }
-});
-map.addControl(drawControl);
+/* ===== DRAW CONTROLS ===== */
+new L.Control.Draw({
+  draw: { polyline:true, polygon:true, rectangle:true, marker:true, circle:false },
+  edit: { featureGroup: drawnItems }
+}).addTo(map);
 
-map.on("draw:drawstart", () => {
-  if (stylePanel) stylePanel.style.display = "flex";
-});
-
-// ===== Simplify helpers (reduces handles) =====
-function simplifyPolylineLayer(layer, tolerancePx = 8) {
-  if (!layer || !layer.getLatLngs) return;
-  const latlngs = layer.getLatLngs();
-  if (!Array.isArray(latlngs) || latlngs.length < 3) return;
-
-  const pts = latlngs.map(ll => map.latLngToLayerPoint(ll));
-  const simplified = L.LineUtil.simplify(pts, tolerancePx);
-  const newLatLngs = simplified.map(p => map.layerPointToLatLng(p));
-  layer.setLatLngs(newLatLngs);
-}
-
-// ===== Created shapes =====
-map.on(L.Draw.Event.CREATED, function (e) {
+map.on(L.Draw.Event.CREATED, e => {
   let layer = e.layer;
-
   if (e.layerType === "marker") {
     const ll = layer.getLatLng();
-    layer = L.circleMarker([ll.lat, ll.lng], markerStyle());
+    layer = L.circleMarker(ll, markerStyle());
   } else {
     layer.setStyle(currentStyle());
   }
-
-  // Reduce handles for regular polylines a bit
-  if (e.layerType === "polyline") simplifyPolylineLayer(layer, 8);
-
   makeSelectable(layer);
-  drawnItems.addLayer(layer);
-
-  // Persist style snapshot
   storeStyle(layer);
-
+  drawnItems.addLayer(layer);
   undoStack.push(layer);
-  setSelected(layer);
-
-  // If move mode already ON, enable dragging for this selected layer (if supported)
-  if (moveEnabled && canDragLayer(layer)) layer.dragging.enable();
+  selectedLayer = layer;
 });
 
-// ===== Edit lifecycle: keep style from reverting =====
-map.on("draw:editstop", () => {
-  // Reapply saved style so nothing reverts visually
-  drawnItems.eachLayer(reapplyStoredStyle);
-});
+/* ===== EDIT FIX (NO STYLE REVERT) ===== */
+map.on("draw:edited", e => e.layers.eachLayer(restoreStyle));
+map.on("draw:editstop", () => drawnItems.eachLayer(restoreStyle));
 
-map.on("draw:edited", (evt) => {
-  evt.layers.eachLayer((layer) => {
-    makeSelectable(layer);
+/* ===== UNDO ===== */
+undoBtn.onclick = () => {
+  const last = undoStack.pop();
+  if (last) drawnItems.removeLayer(last);
+};
 
-    // If it’s a polyline, simplify again after edit
-    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      simplifyPolylineLayer(layer, 8);
-    }
+/* ===== MOVE MODE (NO PLUGIN) ===== */
+let moveEnabled = false;
+let dragLayer = null;
+let dragStart = null;
+let dragOrig = null;
 
-    // Reapply saved style (prevents revert)
-    reapplyStoredStyle(layer);
-  });
-});
+moveBtn.onclick = () => {
+  moveEnabled = !moveEnabled;
+  moveBtn.textContent = moveEnabled ? "Move: ON" : "Move";
+  moveEnabled ? map.dragging.disable() : map.dragging.enable();
+};
 
-// ===== UNDO =====
-const undoBtn = document.getElementById("undoBtn");
-if (undoBtn) {
-  undoBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    const last = undoStack.pop();
-    if (last) {
-      drawnItems.removeLayer(last);
-      if (selectedLayer === last) selectedLayer = null;
-    }
-  });
+function cloneLatLngs(lls) {
+  return Array.isArray(lls) ? lls.map(cloneLatLngs) : L.latLng(lls.lat, lls.lng);
+}
+function offsetLatLngs(lls, dx, dy) {
+  return Array.isArray(lls)
+    ? lls.map(l => offsetLatLngs(l, dx, dy))
+    : map.layerPointToLatLng(
+        map.latLngToLayerPoint(lls).add([dx, dy])
+      );
 }
 
-// ===== FREE DRAW (smoother curves) =====
-let freeDrawEnabled = false;
-let drawing = false;
-let activeLine = null;
-let lastPointPx = null;
-
-// Smaller spacing => smoother lines (less “octagon”)
-const MIN_POINT_DIST_PX = 10;
-
-const freeDrawBtn = document.getElementById("freeDrawBtn");
-if (freeDrawBtn) {
-  freeDrawBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    freeDrawEnabled = !freeDrawEnabled;
-    freeDrawBtn.textContent = freeDrawEnabled ? "Free Draw: ON" : "Free Draw";
-
-    if (freeDrawEnabled && stylePanel) stylePanel.style.display = "flex";
-
-    // In free draw mode, disable map drag so finger draws
-    if (freeDrawEnabled) map.dragging.disable();
-    else if (!moveEnabled) map.dragging.enable();
-  });
+function startDrag(e, layer) {
+  if (!moveEnabled) return;
+  dragLayer = layer;
+  dragStart = map.latLngToLayerPoint(e.latlng);
+  dragOrig = layer instanceof L.CircleMarker
+    ? layer.getLatLng()
+    : cloneLatLngs(layer.getLatLngs());
 }
 
-function startFreeDraw(e) {
-  if (!freeDrawEnabled) return;
-  drawing = true;
-
-  const ll = e.latlng;
-  activeLine = L.polyline([ll], currentStyle()).addTo(drawnItems);
-  makeSelectable(activeLine);
-  setSelected(activeLine);
-
-  storeStyle(activeLine);
-  lastPointPx = map.latLngToLayerPoint(ll);
-}
-
-function moveFreeDraw(e) {
-  if (!freeDrawEnabled || !drawing || !activeLine) return;
-
-  const ll = e.latlng;
-  const p = map.latLngToLayerPoint(ll);
-
-  if (!lastPointPx || p.distanceTo(lastPointPx) >= MIN_POINT_DIST_PX) {
-    activeLine.addLatLng(ll);
-    lastPointPx = p;
+function moveDrag(e) {
+  if (!dragLayer) return;
+  const p = map.latLngToLayerPoint(e.latlng);
+  const d = p.subtract(dragStart);
+  if (dragLayer instanceof L.CircleMarker) {
+    dragLayer.setLatLng(
+      map.layerPointToLatLng(
+        map.latLngToLayerPoint(dragOrig).add(d)
+      )
+    );
+  } else {
+    dragLayer.setLatLngs(offsetLatLngs(dragOrig, d.x, d.y));
   }
 }
-
-function endFreeDraw() {
-  if (!freeDrawEnabled || !drawing || !activeLine) return;
-  drawing = false;
-
-  // Light simplify => smooth curves but fewer handles
-  simplifyPolylineLayer(activeLine, 8);
-
-  undoStack.push(activeLine);
-  activeLine = null;
-  lastPointPx = null;
+function endDrag() {
+  if (!dragLayer) return;
+  storeStyle(dragLayer);
+  dragLayer = null;
 }
 
-map.on("mousedown touchstart", startFreeDraw);
-map.on("mousemove touchmove", moveFreeDraw);
-map.on("mouseup touchend touchcancel", endFreeDraw);
+drawnItems.on("layeradd", e => {
+  const l = e.layer;
+  l.on("mousedown touchstart", ev => startDrag(ev, l));
+});
+map.on("mousemove touchmove", moveDrag);
+map.on("mouseup touchend", endDrag);
 
-// ===== EVENT MARKERS (from data.json) =====
-const markerLayer = L.layerGroup().addTo(map);
+/* ===== FREE DRAW ===== */
+let freeDraw = false;
+let line = null;
+let lastPt = null;
+const MIN_DIST = 10;
 
-fetch("data.json")
-  .then(res => res.json())
-  .then(data => {
-    const dateInput = document.getElementById("date");
-    dateInput.value = "2026-01-13";
+freeDrawBtn.onclick = () => {
+  freeDraw = !freeDraw;
+  freeDrawBtn.textContent = freeDraw ? "Free Draw: ON" : "Free Draw";
+  freeDraw ? map.dragging.disable() : map.dragging.enable();
+};
 
-    function render(date) {
-      markerLayer.clearLayers();
-
-      data.filter(d => d.date === date).forEach(d => {
-        const [lat, lng] = d.coords;
-        [-360, 0, 360].forEach(offset => {
-          L.marker([lat, lng + offset])
-            .addTo(markerLayer)
-            .bindPopup(`<b>${d.country}</b><br>${d.type}<br>${d.text}`);
-        });
-      });
-    }
-
-    render(dateInput.value);
-    dateInput.addEventListener("change", e => render(e.target.value));
-  });
+map.on("mousedown touchstart", e => {
+  if (!freeDraw) return;
+  line = L.polyline([e.latlng], currentStyle()).addTo(drawnItems);
+  makeSelectable(line);
+  storeStyle(line);
+  lastPt = map.latLngToLayerPoint(e.latlng);
+});
+map.on("mousemove touchmove", e => {
+  if (!line) return;
+  const p = map.latLngToLayerPoint(e.latlng);
+  if (p.distanceTo(lastPt) > MIN_DIST) {
+    line.addLatLng(e.latlng);
+    lastPt = p;
+  }
+});
+map.on("mouseup touchend", () => {
+  if (!line) return;
+  undoStack.push(line);
+  line = null;
+});
