@@ -24,6 +24,21 @@
       font-size: 14px;
     }
 
+    /* Buttons */
+    #toggleStyle, #undoBtn, #freeDrawBtn{
+      position:absolute;
+      top:10px;
+      z-index:700;
+      padding:4px 8px;
+      border-radius:10px;
+      border:1px solid #ccc;
+      background: rgba(255,255,255,0.95);
+      cursor:pointer;
+    }
+    #toggleStyle{ left: 260px; }
+    #undoBtn{ left: 330px; }
+    #freeDrawBtn{ left: 400px; }
+
     /* Keep Leaflet controls (zoom + draw toolbar) above other elements */
     .leaflet-top.leaflet-left {
       z-index: 900;
@@ -53,6 +68,10 @@
 
 <input type="date" id="date" />
 
+<button id="toggleStyle">Style</button>
+<button id="undoBtn">Undo</button>
+<button id="freeDrawBtn">Free Draw</button>
+
 <div id="stylePanel">
   <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
   <label>Stroke width <input id="strokeWidth" type="number" min="1" max="20" value="4"></label>
@@ -74,8 +93,11 @@
 <!-- Leaflet Draw -->
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
+<!-- Freehand drawing plugin -->
+<script src="https://unpkg.com/leaflet-freehandshapes@1.1.2/dist/leaflet-freehandshapes.min.js"></script>
+
 <!-- Your app (cache-busted) -->
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 
 </body>
 </html>
