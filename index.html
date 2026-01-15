@@ -38,6 +38,8 @@
     #toggleStyle{ left: 260px; }
     #undoBtn{ left: 330px; }
     #freeDrawBtn{ left: 400px; }
+    #moveBtn{ left: 510px; }
+
 
     /* Keep Leaflet controls (zoom + draw toolbar) above other elements */
     .leaflet-top.leaflet-left {
@@ -71,6 +73,7 @@
 <button id="toggleStyle">Style</button>
 <button id="undoBtn">Undo</button>
 <button id="freeDrawBtn">Free Draw</button>
+<button id="moveBtn">Move</button>
 
 <div id="stylePanel">
   <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
@@ -96,10 +99,11 @@
 <!-- Freehand drawing plugin -->
 <script src="https://unpkg.com/leaflet-freehandshapes@1.1.2/dist/leaflet-freehandshapes.min.js"></script>
 
-<script src="https://unpkg.com/leaflet-path-drag@0.0.14/L.Path.Drag.js"></script>
+<script src="https://unpkg.com/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
+
 
 <!-- Your app (cache-busted) -->
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 
 </body>
 </html>
