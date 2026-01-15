@@ -61,40 +61,47 @@ map.addLayer(drawnItems);
 // Undo stack
 const undoStack = [];
 
-// Selected layer (for restyling existing drawings)
+// Selected layer (for restyling)
 let selectedLayer = null;
 function setSelected(layer) {
   selectedLayer = layer;
 }
 
-// Apply current style to a layer
+// Apply style to a layer
 function applyStyleToLayer(layer) {
   if (!layer) return;
 
-  // CircleMarker: radius + border
   if (layer instanceof L.CircleMarker) {
     layer.setStyle(markerStyle());
     layer.setRadius(+document.getElementById("markerRadius").value);
     return;
   }
 
-  // Paths (polyline/polygon/rectangle)
   if (layer.setStyle) {
     layer.setStyle(currentStyle());
   }
 }
 
-// When panel changes, restyle the selected layer immediately
+// Bind click selection to a layer (so panel changes work)
+function makeSelectable(layer) {
+  if (!layer) return;
+  layer.off("click");
+  layer.on("click", () => setSelected(layer));
+}
+
+// When panel changes, restyle the selected layer (use both input + change)
 [
   "strokeColor","strokeWidth","strokeOpacity",
   "useFill","fillColor","fillOpacity",
   "markerRadius","markerBorder"
 ].forEach(id => {
   const el = document.getElementById(id);
-  if (el) el.addEventListener("input", () => applyStyleToLayer(selectedLayer));
+  if (!el) return;
+  el.addEventListener("input", () => applyStyleToLayer(selectedLayer));
+  el.addEventListener("change", () => applyStyleToLayer(selectedLayer));
 });
 
-// Draw control
+// Draw control (NOTE: Leaflet Draw will still show handles, but we will reduce vertices)
 const drawControl = new L.Control.Draw({
   draw: {
     polyline: true,
@@ -114,11 +121,24 @@ map.on("draw:drawstart", () => {
   if (stylePanel) stylePanel.style.display = "flex";
 });
 
-// When a shape is drawn, apply current styles and make it selectable
+// ===== Polyline simplification (reduces edit handles) =====
+function simplifyPolylineLayer(layer, tolerancePx = 6) {
+  if (!layer || !layer.getLatLngs) return;
+  const latlngs = layer.getLatLngs();
+  if (!Array.isArray(latlngs) || latlngs.length < 3) return;
+
+  // Convert to pixel points, simplify, convert back
+  const pts = latlngs.map(ll => map.latLngToLayerPoint(ll));
+  const simplified = L.LineUtil.simplify(pts, tolerancePx);
+  const newLatLngs = simplified.map(p => map.layerPointToLatLng(p));
+
+  layer.setLatLngs(newLatLngs);
+}
+
+// When a shape is drawn, apply current styles + make selectable + simplify polylines
 map.on(L.Draw.Event.CREATED, function (e) {
   let layer = e.layer;
 
-  // Convert draw "marker" into CircleMarker so size/border/fill works
   if (e.layerType === "marker") {
     const ll = layer.getLatLng();
     layer = L.circleMarker([ll.lat, ll.lng], markerStyle());
@@ -126,11 +146,28 @@ map.on(L.Draw.Event.CREATED, function (e) {
     layer.setStyle(currentStyle());
   }
 
-  layer.on("click", () => setSelected(layer));
+  // Reduce handles for drawn polylines
+  if (e.layerType === "polyline") {
+    simplifyPolylineLayer(layer, 6);
+  }
+
+  makeSelectable(layer);
 
   drawnItems.addLayer(layer);
   undoStack.push(layer);
   setSelected(layer);
+});
+
+// After edits are saved, rebind selection and keep styles (and simplify edited polylines)
+map.on("draw:edited", (evt) => {
+  evt.layers.eachLayer((layer) => {
+    makeSelectable(layer);
+    // Keep whatever style you want: apply current panel style to selected only,
+    // but simplify any polyline edits to prevent handle explosion
+    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+      simplifyPolylineLayer(layer, 6);
+    }
+  });
 });
 
 // ===== UNDO BUTTON =====
@@ -146,10 +183,11 @@ if (undoBtn) {
   });
 }
 
-// ===== FREE DRAW (no plugin; works on mouse + touch) =====
+// ===== FREE DRAW (reduced points + simplify) =====
 let freeDrawEnabled = false;
 let activeLine = null;
 let drawing = false;
+let lastAddedPoint = null;
 
 const freeDrawBtn = document.getElementById("freeDrawBtn");
 if (freeDrawBtn) {
@@ -158,39 +196,51 @@ if (freeDrawBtn) {
     freeDrawEnabled = !freeDrawEnabled;
     freeDrawBtn.textContent = freeDrawEnabled ? "Free Draw: ON" : "Free Draw";
 
-    // When enabling, show style panel so you can set stroke/opacity
     if (freeDrawEnabled && stylePanel) stylePanel.style.display = "flex";
 
-    // Disable map drag while drawing mode is enabled (so finger draws instead of panning)
+    // Draw mode: disable dragging so finger/mouse draws
     if (freeDrawEnabled) map.dragging.disable();
     else map.dragging.enable();
   });
 }
 
+// Only add a new point if we moved at least N pixels (prevents huge vertex counts)
+const MIN_POINT_DIST_PX = 10;
+
 function startFreeDraw(e) {
   if (!freeDrawEnabled) return;
   drawing = true;
 
-  const latlng = e.latlng;
-  activeLine = L.polyline([latlng], currentStyle()).addTo(drawnItems);
-  activeLine.on("click", () => setSelected(activeLine));
+  const ll = e.latlng;
+  activeLine = L.polyline([ll], currentStyle()).addTo(drawnItems);
+  makeSelectable(activeLine);
   setSelected(activeLine);
+
+  lastAddedPoint = map.latLngToLayerPoint(ll);
 }
 
 function moveFreeDraw(e) {
   if (!freeDrawEnabled || !drawing || !activeLine) return;
-  activeLine.addLatLng(e.latlng);
+
+  const ll = e.latlng;
+  const p = map.latLngToLayerPoint(ll);
+
+  if (!lastAddedPoint || p.distanceTo(lastAddedPoint) >= MIN_POINT_DIST_PX) {
+    activeLine.addLatLng(ll);
+    lastAddedPoint = p;
+  }
 }
 
 function endFreeDraw() {
   if (!freeDrawEnabled || !drawing || !activeLine) return;
   drawing = false;
 
-  // Save to undo stack
-  undoStack.push(activeLine);
+  // Simplify line to reduce edit handles
+  simplifyPolylineLayer(activeLine, 8);
 
-  // If you want free-draw to be filled polygons later, we can add that.
+  undoStack.push(activeLine);
   activeLine = null;
+  lastAddedPoint = null;
 }
 
 map.on("mousedown touchstart", startFreeDraw);
