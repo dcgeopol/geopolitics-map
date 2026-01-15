@@ -167,6 +167,79 @@ drawnItems.on("layeradd", e => {
 map.on("mousemove touchmove", moveDrag);
 map.on("mouseup touchend", endDrag);
 
+// ===== RESIZE MODE =====
+let resizeEnabled = false;
+let resizeLayer = null;
+let resizeStart = null;
+let resizeOrig = null;
+
+resizeBtn.onclick = () => {
+  resizeEnabled = !resizeEnabled;
+  resizeBtn.textContent = resizeEnabled ? "Resize: ON" : "Resize";
+  resizeEnabled ? map.dragging.disable() : map.dragging.enable();
+};
+
+function getCentroid(layer) {
+  if (layer instanceof L.CircleMarker) return layer.getLatLng();
+
+  const latlngs = layer.getLatLngs().flat(Infinity);
+  let lat = 0, lng = 0;
+  latlngs.forEach(ll => { lat += ll.lat; lng += ll.lng; });
+  return L.latLng(lat / latlngs.length, lng / latlngs.length);
+}
+
+function startResize(e, layer) {
+  if (!resizeEnabled || layer !== selectedLayer) return;
+
+  resizeLayer = layer;
+  resizeStart = map.latLngToLayerPoint(e.latlng);
+
+  resizeOrig = layer instanceof L.CircleMarker
+    ? { center: layer.getLatLng(), radius: layer.getRadius() }
+    : { center: getCentroid(layer), latlngs: cloneLatLngs(layer.getLatLngs()) };
+}
+
+function moveResize(e) {
+  if (!resizeLayer) return;
+
+  const p = map.latLngToLayerPoint(e.latlng);
+  const factor = 1 + (p.y - resizeStart.y) / 300;
+
+  if (resizeLayer instanceof L.CircleMarker) {
+    resizeLayer.setRadius(Math.max(2, resizeOrig.radius * factor));
+    return;
+  }
+
+  const centerPt = map.latLngToLayerPoint(resizeOrig.center);
+  const newLatLngs = offsetLatLngs(
+    resizeOrig.latlngs,
+    0, 0
+  ).map(ll => {
+    const pt = map.latLngToLayerPoint(ll);
+    return map.layerPointToLatLng(
+      centerPt.add(pt.subtract(centerPt).multiplyBy(factor))
+    );
+  });
+
+  resizeLayer.setLatLngs(newLatLngs);
+}
+
+function endResize() {
+  if (!resizeLayer) return;
+  storeStyle(resizeLayer);
+  resizeLayer = null;
+}
+
+map.on("mousemove touchmove", moveResize);
+map.on("mouseup touchend", endResize);
+
+// Attach resize start to selectable layers
+drawnItems.on("layeradd", e => {
+  const l = e.layer;
+  l.on("mousedown touchstart", ev => startResize(ev, l));
+});
+
+
 /* ===== FREE DRAW ===== */
 let freeDraw = false;
 let line = null;
