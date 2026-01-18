@@ -31,8 +31,8 @@ const strokeOpacity = document.getElementById("strokeOpacity");
 const useFill = document.getElementById("useFill");
 const fillColor = document.getElementById("fillColor");
 const fillOpacity = document.getElementById("fillOpacity");
-const markerRadius = document.getElementById("markerRadius");
-const markerBorder = document.getElementById("markerBorder");
+const markerRadius = document.getElementById("markerRadius");   // used for circle radius when a circle is selected
+const markerBorder = document.getElementById("markerBorder");   // used for circle stroke weight too
 
 /* ===== STYLE HELPERS ===== */
 function currentStyle() {
@@ -45,122 +45,236 @@ function currentStyle() {
     fillOpacity: +fillOpacity.value
   };
 }
-function markerStyle() {
-  return {
-    ...currentStyle(),
-    radius: +markerRadius.value,
-    weight: +markerBorder.value
-  };
-}
 
 /* ===== UI: style panel toggle ===== */
 toggleStyleBtn.onclick = () => {
-  stylePanel.style.display = (stylePanel.style.display === "none" || !stylePanel.style.display)
-    ? "flex"
-    : "none";
+  stylePanel.style.display =
+    (stylePanel.style.display === "none" || !stylePanel.style.display) ? "flex" : "none";
 };
 
 /* ===== DRAW STORAGE ===== */
 const drawnItems = new L.FeatureGroup().addTo(map);
-const undoStack = [];
 let selectedLayer = null;
 
-/* ===== Persist per-layer style ===== */
-function storeStyle(layer) {
-  layer.__style = layer instanceof L.CircleMarker ? markerStyle() : currentStyle();
+/* ===== GLOBAL UNDO (state snapshots) ===== */
+const history = [];
+function pushHistory() {
+  history.push(serializeState());
+  if (history.length > 200) history.shift(); // keep it bounded
 }
+function undo() {
+  if (history.length < 1) return;
+  const prev = history.pop();
+  restoreState(prev);
+  hideTransformHandles();
+  selectedLayer = null;
+}
+
+/* ===== Serialize / restore ALL drawings ===== */
+function serializeState() {
+  const layers = [];
+  drawnItems.eachLayer(layer => {
+    // Marker (pin icon)
+    if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
+      layers.push({
+        type: "marker",
+        latlng: layer.getLatLng()
+      });
+      return;
+    }
+
+    // Circle shape
+    if (layer instanceof L.Circle) {
+      layers.push({
+        type: "circle",
+        latlng: layer.getLatLng(),
+        radius: layer.getRadius(),
+        style: layer.options,
+        angleRad: layer.__angleRad || 0
+      });
+      return;
+    }
+
+    // Polyline / Polygon / Rectangle
+    if (layer instanceof L.Polyline) {
+      layers.push({
+        type: layer instanceof L.Polygon ? "polygon" : "polyline",
+        latlngs: layer.getLatLngs(),
+        style: layer.options,
+        angleRad: layer.__angleRad || 0
+      });
+      return;
+    }
+  });
+
+  return { layers };
+}
+
+function restoreState(state) {
+  drawnItems.clearLayers();
+
+  (state.layers || []).forEach(obj => {
+    let layer = null;
+
+    if (obj.type === "marker") {
+      layer = L.marker(obj.latlng);
+      layer.on("click", () => selectLayer(layer));
+      drawnItems.addLayer(layer);
+      return;
+    }
+
+    if (obj.type === "circle") {
+      layer = L.circle(obj.latlng, { ...obj.style, radius: obj.radius });
+      layer.__angleRad = obj.angleRad || 0;
+      layer.on("click", () => selectLayer(layer));
+      drawnItems.addLayer(layer);
+      return;
+    }
+
+    if (obj.type === "polyline") {
+      layer = L.polyline(obj.latlngs, obj.style);
+      layer.__angleRad = obj.angleRad || 0;
+      layer.on("click", () => selectLayer(layer));
+      drawnItems.addLayer(layer);
+      return;
+    }
+
+    if (obj.type === "polygon") {
+      layer = L.polygon(obj.latlngs, obj.style);
+      layer.__angleRad = obj.angleRad || 0;
+      layer.on("click", () => selectLayer(layer));
+      drawnItems.addLayer(layer);
+      return;
+    }
+  });
+}
+
+/* ===== Style application (shapes only) ===== */
 function applyStyle(layer) {
   if (!layer) return;
-  const s = layer instanceof L.CircleMarker ? markerStyle() : currentStyle();
-  layer.setStyle(s);
-  if (layer instanceof L.CircleMarker) layer.setRadius(s.radius);
-  layer.__style = s;
-}
-function restoreStyle(layer) {
-  if (!layer || !layer.__style) return;
-  layer.setStyle(layer.__style);
-  if (layer instanceof L.CircleMarker && typeof layer.__style.radius === "number") {
-    layer.setRadius(layer.__style.radius);
+
+  // marker icon: no stroke/fill styling (we just ignore)
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return;
+
+  // Circle: style + radius control
+  if (layer instanceof L.Circle) {
+    // Use markerBorder as circle stroke width; markerRadius as circle radius (optional)
+    const s = currentStyle();
+    const w = +markerBorder.value;
+    layer.setStyle({ ...s, weight: w });
+    const r = +markerRadius.value;
+    if (Number.isFinite(r) && r > 0) layer.setRadius(r);
+    pushAnglePreserve(layer);
+    return;
+  }
+
+  // Polyline/Polygon/Rectangle
+  if (layer.setStyle) {
+    const s = currentStyle();
+    layer.setStyle(s);
+    pushAnglePreserve(layer);
   }
 }
 
-/* ===== Select layer on click ===== */
+// preserve angle metadata during style changes
+function pushAnglePreserve(layer) {
+  layer.__angleRad = layer.__angleRad || 0;
+}
+
+/* ===== Select layer ===== */
 function selectLayer(layer) {
   selectedLayer = layer;
-  // show handles if move mode is on
   if (moveEnabled) showTransformHandles();
 }
 
-/* Restyle selected when panel changes */
+/* Panel changes restyle selected layer, with UNDO snapshots */
 [
   strokeColor, strokeWidth, strokeOpacity,
   useFill, fillColor, fillOpacity,
   markerRadius, markerBorder
 ].forEach(el => {
   el.addEventListener("input", () => {
+    if (!selectedLayer) return;
+    pushHistory();
     applyStyle(selectedLayer);
-    if (moveEnabled) showTransformHandles(); // keep handles aligned
+    if (moveEnabled) showTransformHandles();
   });
 });
 
-/* ===== Leaflet Draw: DRAW ONLY (NO EDIT/DELETE BUTTONS) ===== */
+/* ===== Leaflet Draw: DRAW ONLY =====
+   - marker: pin icon
+   - circle: circle shape (like rectangle tool)
+*/
 new L.Control.Draw({
-  draw: { polyline:true, polygon:true, rectangle:true, marker:true, circle:false },
+  draw: {
+    polyline: true,
+    polygon: true,
+    rectangle: true,
+    circle: true,
+    marker: true
+  },
   edit: false
 }).addTo(map);
 
 map.on(L.Draw.Event.CREATED, e => {
+  pushHistory(); // undo should remove this creation
+
   let layer = e.layer;
 
+  // Marker tool => real map pin icon
   if (e.layerType === "marker") {
-    const ll = layer.getLatLng();
-    layer = L.circleMarker(ll, markerStyle());
-  } else {
-    layer.setStyle(currentStyle());
+    layer = L.marker(layer.getLatLng());
+    layer.on("click", () => selectLayer(layer));
+    drawnItems.addLayer(layer);
+    selectLayer(layer);
+    return;
   }
 
-  layer.on("click", () => selectLayer(layer));
-  storeStyle(layer);
+  // Circle tool => circle SHAPE
+  if (e.layerType === "circle") {
+    layer.setStyle({ ...currentStyle(), weight: +markerBorder.value });
+    // Keep the radius the user drew (don’t overwrite here)
+    layer.on("click", () => selectLayer(layer));
+    drawnItems.addLayer(layer);
+    selectLayer(layer);
+    return;
+  }
 
+  // Other shapes
+  layer.setStyle(currentStyle());
+  layer.on("click", () => selectLayer(layer));
   drawnItems.addLayer(layer);
-  undoStack.push(layer);
   selectLayer(layer);
 });
 
 /* ===== UNDO ===== */
-undoBtn.onclick = () => {
-  const last = undoStack.pop();
-  if (!last) return;
-  drawnItems.removeLayer(last);
-  if (selectedLayer === last) {
-    selectedLayer = null;
-    hideTransformHandles();
-  }
-};
+undoBtn.onclick = undo;
 
 /* ===== FREE DRAW ===== */
 let freeDraw = false;
 let line = null;
 let lastPt = null;
-const MIN_DIST = 10; // smooth-ish without centipede
+const MIN_DIST = 10; // smooth-ish without handle centipede
 
 freeDrawBtn.onclick = () => {
   freeDraw = !freeDraw;
   freeDrawBtn.textContent = freeDraw ? "Free Draw: ON" : "Free Draw";
-  if (freeDraw) {
-    map.dragging.disable();
-  } else if (!moveEnabled) {
-    map.dragging.enable();
-  }
+
+  if (freeDraw) map.dragging.disable();
+  else if (!moveEnabled) map.dragging.enable();
 };
 
 map.on("mousedown touchstart", e => {
   if (!freeDraw) return;
+  pushHistory(); // undo removes the whole free-draw line
+
   line = L.polyline([e.latlng], currentStyle()).addTo(drawnItems);
   line.on("click", () => selectLayer(line));
-  storeStyle(line);
+  selectLayer(line);
+
   lastPt = map.latLngToLayerPoint(e.latlng);
 });
+
 map.on("mousemove touchmove", e => {
   if (!line) return;
   const p = map.latLngToLayerPoint(e.latlng);
@@ -169,15 +283,14 @@ map.on("mousemove touchmove", e => {
     lastPt = p;
   }
 });
+
 map.on("mouseup touchend touchcancel", () => {
   if (!line) return;
-  undoStack.push(line);
-  selectLayer(line);
   line = null;
 });
 
 /* =======================================================================
-   TRANSFORM HANDLES (Move + Resize + Rotate) — NO Leaflet-Draw Edit mode
+   TRANSFORM HANDLES (Move + Resize + Rotate) — custom, no Draw edit mode
    ======================================================================= */
 
 let moveEnabled = false;
@@ -210,17 +323,18 @@ function hideTransformHandles() {
 }
 
 function layerBoundsLL(layer) {
-  if (layer instanceof L.CircleMarker) {
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
     const ll = layer.getLatLng();
     return L.latLngBounds(ll, ll);
   }
   if (layer.getBounds) return layer.getBounds();
-  // fallback for polyline/polygon
+  // fallback
   return L.latLngBounds(layer.getLatLngs().flat(Infinity));
 }
 
 function layerCenterLL(layer) {
-  if (layer instanceof L.CircleMarker) return layer.getLatLng();
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return layer.getLatLng();
+  if (layer instanceof L.Circle) return layer.getLatLng();
 
   const latlngs = layer.getLatLngs().flat(Infinity);
   let lat = 0, lng = 0;
@@ -260,7 +374,7 @@ function showTransformHandles() {
   hRotate = L.circleMarker(rot, { ...handleStyle, radius: 7 }).addTo(transformGroup);
 
   // wire interactions
-  wireMoveOnTarget(selectedLayer); // drag shape itself
+  wireMoveOnTarget(selectedLayer); // drag shape itself => move
   wireScaleHandle(hNW);
   wireScaleHandle(hNE);
   wireScaleHandle(hSE);
@@ -269,16 +383,6 @@ function showTransformHandles() {
 }
 
 /* ---------- Geometry transforms in pixel space ---------- */
-
-function getLayerLatLngs(layer) {
-  if (layer instanceof L.CircleMarker) return layer.getLatLng();
-  return layer.getLatLngs();
-}
-
-function setLayerLatLngs(layer, latlngs) {
-  if (layer instanceof L.CircleMarker) layer.setLatLng(latlngs);
-  else layer.setLatLngs(latlngs);
-}
 
 function deepCloneLatLngs(lls) {
   if (Array.isArray(lls)) return lls.map(deepCloneLatLngs);
@@ -290,23 +394,34 @@ function mapLatLngs(lls, fn) {
   return fn(lls);
 }
 
-function translateLayer(layer, dx, dy, originLatLngs) {
-  if (layer instanceof L.CircleMarker) {
-    const p = map.latLngToLayerPoint(originLatLngs).add([dx, dy]);
+function translateLayer(layer, dx, dy, origin) {
+  // Marker (pin)
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
+    const p = map.latLngToLayerPoint(origin).add([dx, dy]);
     layer.setLatLng(map.layerPointToLatLng(p));
     return;
   }
-  const newLLs = mapLatLngs(originLatLngs, (ll) => {
+
+  // Circle
+  if (layer instanceof L.Circle) {
+    const p = map.latLngToLayerPoint(origin.center).add([dx, dy]);
+    layer.setLatLng(map.layerPointToLatLng(p));
+    return;
+  }
+
+  // Polyline/Polygon
+  const newLLs = mapLatLngs(origin, (ll) => {
     const p = map.latLngToLayerPoint(ll).add([dx, dy]);
     return map.layerPointToLatLng(p);
   });
   layer.setLatLngs(newLLs);
 }
 
-function transformLayer(layer, originLatLngs, centerLL, scale, angleRad) {
-  // transform all vertices around center in pixel space
-  const c = map.latLngToLayerPoint(centerLL);
+function transformLayer(layer, origin, centerLL, scale, angleRad) {
+  // Marker: scale/rotate ignored (only move is meaningful)
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return;
 
+  const c = map.latLngToLayerPoint(centerLL);
   const cos = Math.cos(angleRad);
   const sin = Math.sin(angleRad);
 
@@ -324,24 +439,22 @@ function transformLayer(layer, originLatLngs, centerLL, scale, angleRad) {
     return map.layerPointToLatLng(out);
   }
 
-  if (layer instanceof L.CircleMarker) {
-    // circlemarker: scale changes radius; rotate irrelevant
-    const centerPt = map.latLngToLayerPoint(originLatLngs);
-    const outLL = map.layerPointToLatLng(centerPt); // position stays unless moved separately
-    layer.setLatLng(outLL);
-    const baseR = layer.getRadius();
+  // Circle: scale radius only (rotation irrelevant)
+  if (layer instanceof L.Circle) {
+    const baseR = origin.radius;
     layer.setRadius(Math.max(2, baseR * scale));
     return;
   }
 
-  const newLLs = mapLatLngs(originLatLngs, xformPoint);
+  // Polyline/Polygon
+  const newLLs = mapLatLngs(origin, xformPoint);
   layer.setLatLngs(newLLs);
 }
 
 /* ---------- Drag interactions ---------- */
 
 function wireMoveOnTarget(layer) {
-  // prevent stacking listeners
+  // remove old listeners on the selected layer
   layer.off("mousedown");
   layer.off("touchstart");
 
@@ -351,25 +464,39 @@ function wireMoveOnTarget(layer) {
 
   function start(e) {
     if (!moveEnabled || !selectedLayer || layer !== selectedLayer) return;
+
+    pushHistory(); // undo should revert this move
+
     dragging = true;
     startPt = map.latLngToLayerPoint(e.latlng);
-    origin = layer instanceof L.CircleMarker ? layer.getLatLng() : deepCloneLatLngs(layer.getLatLngs());
+
+    if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
+      origin = layer.getLatLng();
+    } else if (layer instanceof L.Circle) {
+      origin = { center: layer.getLatLng(), radius: layer.getRadius() };
+    } else {
+      origin = deepCloneLatLngs(layer.getLatLngs());
+    }
+
     if (e.originalEvent) e.originalEvent.preventDefault();
   }
+
   function move(e) {
     if (!dragging) return;
     const p = map.latLngToLayerPoint(e.latlng);
     const d = p.subtract(startPt);
+
     translateLayer(layer, d.x, d.y, origin);
-    storeStyle(layer);
     showTransformHandles();
   }
+
   function end() {
     dragging = false;
   }
 
   layer.on("mousedown", start);
   layer.on("touchstart", start);
+
   map.on("mousemove", move);
   map.on("touchmove", move);
   map.on("mouseup", end);
@@ -382,23 +509,31 @@ function wireScaleHandle(handle) {
 
   let scaling = false;
   let startPt = null;
-  let originLLs = null;
+  let origin = null;
   let centerLL = null;
   let startDist = 1;
   let baseAngle = 0;
 
   function start(e) {
     if (!moveEnabled || !selectedLayer) return;
+    if (selectedLayer instanceof L.Marker && !(selectedLayer instanceof L.CircleMarker)) return;
+
+    pushHistory(); // undo should revert this resize/scale
+
     scaling = true;
 
-    originLLs = selectedLayer instanceof L.CircleMarker ? selectedLayer.getLatLng() : deepCloneLatLngs(selectedLayer.getLatLngs());
     centerLL = layerCenterLL(selectedLayer);
-
     const c = map.latLngToLayerPoint(centerLL);
     startPt = map.latLngToLayerPoint(e.latlng);
 
     startDist = Math.max(1, startPt.distanceTo(c));
     baseAngle = selectedLayer.__angleRad || 0;
+
+    if (selectedLayer instanceof L.Circle) {
+      origin = { center: selectedLayer.getLatLng(), radius: selectedLayer.getRadius() };
+    } else {
+      origin = deepCloneLatLngs(selectedLayer.getLatLngs());
+    }
 
     if (e.originalEvent) e.originalEvent.preventDefault();
   }
@@ -411,10 +546,7 @@ function wireScaleHandle(handle) {
     const dist = Math.max(1, p.distanceTo(c));
     const scale = dist / startDist;
 
-    // apply scale around center; preserve current rotation
-    transformLayer(selectedLayer, originLLs, centerLL, scale, baseAngle);
-
-    storeStyle(selectedLayer);
+    transformLayer(selectedLayer, origin, centerLL, scale, baseAngle);
     showTransformHandles();
   }
 
@@ -422,6 +554,7 @@ function wireScaleHandle(handle) {
 
   handle.on("mousedown", start);
   handle.on("touchstart", start);
+
   map.on("mousemove", move);
   map.on("touchmove", move);
   map.on("mouseup", end);
@@ -433,7 +566,7 @@ function wireRotateHandle(handle) {
   handle.off("touchstart");
 
   let rotating = false;
-  let originLLs = null;
+  let origin = null;
   let centerLL = null;
   let startAngle = 0;
   let baseAngle = 0;
@@ -444,10 +577,14 @@ function wireRotateHandle(handle) {
 
   function start(e) {
     if (!moveEnabled || !selectedLayer) return;
-    if (selectedLayer instanceof L.CircleMarker) return; // rotation not meaningful
+    if (selectedLayer instanceof L.Marker && !(selectedLayer instanceof L.CircleMarker)) return;
+    if (selectedLayer instanceof L.Circle) return; // rotation not meaningful for circles
+
+    pushHistory(); // undo should revert this rotation
+
     rotating = true;
 
-    originLLs = deepCloneLatLngs(selectedLayer.getLatLngs());
+    origin = deepCloneLatLngs(selectedLayer.getLatLngs());
     centerLL = layerCenterLL(selectedLayer);
 
     const c = map.latLngToLayerPoint(centerLL);
@@ -469,11 +606,9 @@ function wireRotateHandle(handle) {
     const delta = ang - startAngle;
     const newAngle = baseAngle + delta;
 
-    // rotate around center without scaling
-    transformLayer(selectedLayer, originLLs, centerLL, 1, newAngle);
+    transformLayer(selectedLayer, origin, centerLL, 1, newAngle);
 
     selectedLayer.__angleRad = newAngle;
-    storeStyle(selectedLayer);
     showTransformHandles();
   }
 
@@ -481,6 +616,7 @@ function wireRotateHandle(handle) {
 
   handle.on("mousedown", start);
   handle.on("touchstart", start);
+
   map.on("mousemove", move);
   map.on("touchmove", move);
   map.on("mouseup", end);
