@@ -445,7 +445,8 @@ function showTransformHandles() {
     color: "#000",
     weight: 1,
     opacity: 0.6,
-    fill: false
+    fill: false,
+    interactive: false 
   }).addTo(transformGroup);
 
   const handleStyle = { radius: 6, color: "#000", weight: 2, fill: true, fillOpacity: 1 };
@@ -495,48 +496,53 @@ function translateLayer(layer, dx, dy, origin) {
   layer.setLatLngs(newLLs);
 }
 
-function transformLayer(layer, origin, centerLL, scale, angleRad) {
+function scalePreserveRotation(layer, origin, centerLL, scale, baseAngleRad) {
   if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return;
 
   const c = map.latLngToLayerPoint(centerLL);
 
-  function rotatePoint(pt, rad) {
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    return L.point(
-      pt.x * cos - pt.y * sin,
-      pt.x * sin + pt.y * cos
-    );
+  function rot(pt, rad) {
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return L.point(pt.x * cos - pt.y * sin, pt.x * sin + pt.y * cos);
   }
 
-  function xformPoint(ll, baseAngleRad) {
+  function xform(ll) {
     const p = map.latLngToLayerPoint(ll);
     const v = p.subtract(c);
 
-    // 1) unrotate to 0 so scaling doesn't affect angle
-    const unrot = rotatePoint(v, -baseAngleRad);
-
-    // 2) scale in unrotated space
+    // unrotate -> scale -> rerotate (keeps rotation constant)
+    const unrot = rot(v, -baseAngleRad);
     const scaled = L.point(unrot.x * scale, unrot.y * scale);
+    const rerot = rot(scaled, baseAngleRad);
 
-    // 3) rotate back to baseAngle
-    const rerot = rotatePoint(scaled, baseAngleRad);
-
-    const out = rerot.add(c);
-    return map.layerPointToLatLng(out);
+    return map.layerPointToLatLng(rerot.add(c));
   }
 
-  // Circle: scale radius only (rotation irrelevant)
   if (layer instanceof L.Circle) {
-    const baseR = origin.radius;
-    layer.setRadius(Math.max(2, baseR * scale));
+    layer.setRadius(Math.max(2, origin.radius * scale));
     return;
   }
 
-  // Polyline/Polygon: use angleRad as the base rotation to preserve
-  const newLLs = mapLatLngs(origin, (ll) => xformPoint(ll, angleRad));
-  layer.setLatLngs(newLLs);
+  layer.setLatLngs(mapLatLngs(origin, xform));
 }
+
+function rotateToAngle(layer, origin, centerLL, angleRad) {
+  if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return;
+  if (layer instanceof L.Circle) return; // rotation not meaningful
+
+  const c = map.latLngToLayerPoint(centerLL);
+  const cos = Math.cos(angleRad), sin = Math.sin(angleRad);
+
+  function xform(ll) {
+    const p = map.latLngToLayerPoint(ll);
+    const v = p.subtract(c);
+    const r = L.point(v.x * cos - v.y * sin, v.x * sin + v.y * cos).add(c);
+    return map.layerPointToLatLng(r);
+  }
+
+  layer.setLatLngs(mapLatLngs(origin, xform));
+}
+
 
 
 /* ---------- Handle interactions (ALL undoable) ---------- */
@@ -626,7 +632,8 @@ function wireScaleHandle(handle) {
     const scale = dist / startDist;
 
     // IMPORTANT: pass baseAngle into transformLayer so rotation is preserved
-    transformLayer(selectedLayer, origin, centerLL, scale, baseAngle);
+    rotateToAngle(selectedLayer, origin, centerLL, newAngle);
+
 
     // Keep the stored angle unchanged
     selectedLayer.__angleRad = baseAngle;
