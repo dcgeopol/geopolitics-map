@@ -499,32 +499,45 @@ function transformLayer(layer, origin, centerLL, scale, angleRad) {
   if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) return;
 
   const c = map.latLngToLayerPoint(centerLL);
-  const cos = Math.cos(angleRad);
-  const sin = Math.sin(angleRad);
 
-  function xformPoint(ll) {
+  function rotatePoint(pt, rad) {
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    return L.point(
+      pt.x * cos - pt.y * sin,
+      pt.x * sin + pt.y * cos
+    );
+  }
+
+  function xformPoint(ll, baseAngleRad) {
     const p = map.latLngToLayerPoint(ll);
     const v = p.subtract(c);
 
-    const sx = v.x * scale;
-    const sy = v.y * scale;
+    // 1) unrotate to 0 so scaling doesn't affect angle
+    const unrot = rotatePoint(v, -baseAngleRad);
 
-    const rx = sx * cos - sy * sin;
-    const ry = sx * sin + sy * cos;
+    // 2) scale in unrotated space
+    const scaled = L.point(unrot.x * scale, unrot.y * scale);
 
-    const out = L.point(rx, ry).add(c);
+    // 3) rotate back to baseAngle
+    const rerot = rotatePoint(scaled, baseAngleRad);
+
+    const out = rerot.add(c);
     return map.layerPointToLatLng(out);
   }
 
+  // Circle: scale radius only (rotation irrelevant)
   if (layer instanceof L.Circle) {
     const baseR = origin.radius;
     layer.setRadius(Math.max(2, baseR * scale));
     return;
   }
 
-  const newLLs = mapLatLngs(origin, xformPoint);
+  // Polyline/Polygon: use angleRad as the base rotation to preserve
+  const newLLs = mapLatLngs(origin, (ll) => xformPoint(ll, angleRad));
   layer.setLatLngs(newLLs);
 }
+
 
 /* ---------- Handle interactions (ALL undoable) ---------- */
 function wireMoveOnTarget(layer) {
@@ -606,12 +619,18 @@ function wireScaleHandle(handle) {
 
   function move(e) {
     if (!scaling) return;
+
     const c = map.latLngToLayerPoint(centerLL);
     const p = map.latLngToLayerPoint(e.latlng);
     const dist = Math.max(1, p.distanceTo(c));
     const scale = dist / startDist;
 
+    // IMPORTANT: pass baseAngle into transformLayer so rotation is preserved
     transformLayer(selectedLayer, origin, centerLL, scale, baseAngle);
+
+    // Keep the stored angle unchanged
+    selectedLayer.__angleRad = baseAngle;
+
     showTransformHandles();
   }
 
@@ -624,6 +643,7 @@ function wireScaleHandle(handle) {
   map.on("mouseup", end);
   map.on("touchend touchcancel", end);
 }
+
 
 function wireRotateHandle(handle) {
   handle.off("mousedown");
