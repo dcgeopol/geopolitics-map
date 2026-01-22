@@ -120,30 +120,17 @@ function setMarkerLabel(marker, text) {
 const drawnItems = new L.FeatureGroup().addTo(map);
 let selectedLayer = null;
 
+/* =========================
+   TRUE UNDO + REDO (timeline states)
+   ========================= */
+const history = [];
+const redoStack = [];
+
 function serializeState() {
   return {
     layers: drawnItems.toGeoJSON()
   };
 }
-
-pushHistory({ clearRedo: false }); // initial empty state
-
-function selectLayer(layer) {
-  selectedLayer = layer;
-  if (moveEnabled) showTransformHandles();
-}
-
-function wireSelectable(layer) {
-  layer.off("click");
-  layer.on("click", () => selectLayer(layer));
-}
-
-/* =========================
-TRUE UNDO + REDO (timeline states)
-========================= */
-
-const history = [];
-const redoStack = [];
 
 function statesEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -187,7 +174,20 @@ function redo() {
   if (moveEnabled) showTransformHandles();
 }
 
-// Wire buttons
+/* initial empty state snapshot */
+pushHistory({ clearRedo: false });
+
+function selectLayer(layer) {
+  selectedLayer = layer;
+  if (moveEnabled) showTransformHandles();
+}
+
+function wireSelectable(layer) {
+  layer.off("click");
+  layer.on("click", () => selectLayer(layer));
+}
+
+// Wire buttons (ONLY ONCE)
 if (undoBtn) undoBtn.onclick = undo;
 
 const redoBtn = document.getElementById("redoBtn");
@@ -212,6 +212,7 @@ document.addEventListener("keydown", (e) => {
     redo();
   }
 });
+
 
 if (undoBtn) undoBtn.onclick = undo;
 
