@@ -37,8 +37,32 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
    ========================= */
 
 // Group to store all drawn shapes/markers
-const drawnItems = new L.FeatureGroup();
-map.addLayer(drawnItems);
+const drawnItems = new L.FeatureGroup().addTo(map);
+const drawControl = new L.Control.Draw({
+  position: "topleft",
+  edit: { featureGroup: drawnItems },
+  draw: {
+    polyline: true,
+    polygon: true,
+    rectangle: true,
+    circle: true,
+    marker: true,
+    circlemarker: false
+  }
+});
+map.addControl(drawControl);
+
+map.on(L.Draw.Event.CREATED, (e) => {
+  const layer = e.layer;
+  drawnItems.addLayer(layer);
+
+  if (typeof wireSelectable === "function") wireSelectable(layer);
+  if (typeof selectLayer === "function") selectLayer(layer);
+
+  if (typeof pushHistoryDebounced === "function") pushHistoryDebounced();
+  else if (typeof pushHistory === "function") pushHistory();
+});
+
 
 // Add the Leaflet.Draw toolbar
 const drawControl = new L.Control.Draw({
@@ -169,8 +193,7 @@ function setMarkerLabel(marker, text) {
 /* =========================
    LAYERS + SELECTION
    ========================= */
-const drawnItems = new L.FeatureGroup().addTo(map);
-let selectedLayer = null;
+
 
 // ===== Leaflet Draw toolbar =====
 const drawControl = new L.Control.Draw({
