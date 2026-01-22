@@ -131,9 +131,10 @@ function wireSelectable(layer) {
 }
 
 /* =========================
-   TRUE UNDO (snapshots)
+   TRUE UNDO + REDO (snapshots)
    ========================= */
 const history = [];
+const redoStack = [];
 let lastSnapshotJson = "";
 let snapshotTimer = null;
 
@@ -152,7 +153,7 @@ function serializeState() {
       return;
     }
 
-    // Circle shape
+    // Circle
     if (layer instanceof L.Circle) {
       layers.push({
         type: "circle",
@@ -163,7 +164,7 @@ function serializeState() {
       return;
     }
 
-    // Polyline/Polygon/Rectangle
+    // Polyline/Polygon
     if (layer instanceof L.Polyline) {
       layers.push({
         type: (layer instanceof L.Polygon) ? "polygon" : "polyline",
@@ -174,6 +175,7 @@ function serializeState() {
       return;
     }
   });
+
   return { layers };
 }
 
@@ -208,7 +210,6 @@ function restoreState(state) {
 
       wireSelectable(layer);
 
-      // double click to edit label
       layer.on("dblclick", () => {
         const next = prompt("Marker label:", layer.__label || "") ?? (layer.__label || "");
         pushHistory();
@@ -222,7 +223,6 @@ function restoreState(state) {
     if (obj.type === "circle") {
       layer = L.circle(obj.latlng, { ...obj.style, radius: obj.radius });
       wireSelectable(layer);
-      // circles don’t need __angleRad
       drawnItems.addLayer(layer);
       return;
     }
@@ -243,14 +243,21 @@ function restoreState(state) {
       return;
     }
   });
+
+  if (moveEnabled) showTransformHandles();
 }
 
 function pushHistory() {
   const state = serializeState();
   const json = JSON.stringify(state);
   if (json === lastSnapshotJson) return;
+
   history.push(state);
   lastSnapshotJson = json;
+
+  // ✅ any NEW action wipes redo (standard undo behavior)
+  redoStack.length = 0;
+
   if (history.length > 250) history.shift();
 }
 
@@ -264,12 +271,34 @@ function pushHistoryDebounced(delayMs = 120) {
 
 function undo() {
   if (history.length < 1) return;
+
+  // Push current into redo, then restore last history
+  const current = serializeState();
+  redoStack.push(current);
+
   const prev = history.pop();
   lastSnapshotJson = JSON.stringify(prev);
   restoreState(prev);
 }
 
+function redo() {
+  if (redoStack.length < 1) return;
+
+  // Push current into history, then restore redo state
+  const current = serializeState();
+  history.push(current);
+
+  const next = redoStack.pop();
+  lastSnapshotJson = JSON.stringify(next);
+  restoreState(next);
+}
+
 if (undoBtn) undoBtn.onclick = undo;
+
+const redoBtn = document.getElementById("redoBtn");
+if (redoBtn) redoBtn.onclick = redo;
+
+
 
 /* =========================
    STYLE APPLY (undoable)
