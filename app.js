@@ -6,6 +6,13 @@ const map = L.map("map", {
   zoomSnap: 0.25,
   zoomDelta: 0.25
 }).setView([20, 0], 2);
+// Fix default Leaflet marker icons on GitHub Pages
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
+
 
 // Cylinder behavior (clamp lat, normalize lng)
 map.on("moveend", () => {
@@ -301,68 +308,7 @@ function applyStyle(layer) {
   });
 });
 
-/* =========================
-   DRAW TOOLS (Draw-only)
-   ========================= */
-new L.Control.Draw({
-  draw: {
-    polyline: true,
-    polygon: true,
-    rectangle: true,
-    circle: true,
-    marker: true,
-    circlemarker: true // may still show; we ignore its output below
-  },
-  edit: false
-}).addTo(map);
 
-map.on(L.Draw.Event.CREATED, (e) => {
-  // Ignore circleMarker tool output entirely
-  if (e.layerType === "circlemarker") return;
-
-  pushHistory(); // creation undoable
-
-  let layer = e.layer;
-
-  // Marker tool => colorable pin + label
-  if (e.layerType === "marker") {
-    layer = L.marker(layer.getLatLng(), {
-      icon: makePinIcon(strokeColor.value, +strokeOpacity.value)
-    });
-    layer.__markerColor = strokeColor.value;
-    layer.__markerOpacity = +strokeOpacity.value;
-
-    const label = prompt("Marker label (optional):", "") || "";
-    setMarkerLabel(layer, label);
-
-    wireSelectable(layer);
-    layer.on("dblclick", () => {
-      const next = prompt("Marker label:", layer.__label || "") ?? (layer.__label || "");
-      pushHistory();
-      setMarkerLabel(layer, next);
-    });
-
-    drawnItems.addLayer(layer);
-    selectLayer(layer);
-    return;
-  }
-
-  // Circle tool => circle shape (keep radius)
-  if (e.layerType === "circle") {
-    layer.setStyle(currentStyle());
-    wireSelectable(layer);
-    drawnItems.addLayer(layer);
-    selectLayer(layer);
-    return;
-  }
-
-  // Polylines / polygons / rectangles
-  layer.setStyle(currentStyle());
-  layer.__angleRad = 0;
-  wireSelectable(layer);
-  drawnItems.addLayer(layer);
-  selectLayer(layer);
-});
 // ===== Fix Leaflet sizing glitches =====
 function fixMapSizeSoon() {
   setTimeout(() => map.invalidateSize(true), 50);
@@ -788,3 +734,14 @@ fetch("data.json")
     render(dateInput.value);
     dateInput.addEventListener("change", e => render(e.target.value));
   });
+// Fix tile glitches / layout resize issues
+function fixMapSizeHard() {
+  map.invalidateSize(true);
+  setTimeout(() => map.invalidateSize(true), 100);
+  setTimeout(() => map.invalidateSize(true), 300);
+  setTimeout(() => map.invalidateSize(true), 800);
+}
+window.addEventListener("load", fixMapSizeHard);
+window.addEventListener("resize", fixMapSizeHard);
+setTimeout(fixMapSizeHard, 0);
+
