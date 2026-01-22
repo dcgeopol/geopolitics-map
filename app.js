@@ -209,8 +209,7 @@ document.addEventListener("keydown", (e) => {
 
 if (undoBtn) undoBtn.onclick = undo;
 
-const redoBtn = document.getElementById("redoBtn");
-if (redoBtn) redoBtn.onclick = redo;
+
 
 
 
