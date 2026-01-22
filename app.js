@@ -128,6 +128,43 @@ function setMarkerLabel(marker, text) {
 const drawnItems = new L.FeatureGroup().addTo(map);
 let selectedLayer = null;
 
+// ===== Leaflet Draw toolbar =====
+const drawControl = new L.Control.Draw({
+  position: "topleft",
+  edit: {
+    featureGroup: drawnItems,
+    edit: false,   // you use custom transform handles
+    remove: false
+  },
+  draw: {
+    polyline: true,
+    polygon: true,
+    rectangle: true,
+    circle: true,
+    marker: true,
+    circlemarker: false
+  }
+});
+
+map.addControl(drawControl);
+
+// When a shape is created
+map.on(L.Draw.Event.CREATED, (e) => {
+  const layer = e.layer;
+
+  drawnItems.addLayer(layer);
+  wireSelectable(layer);
+  selectLayer(layer);
+
+  // Save undo snapshot
+  if (typeof pushHistoryDebounced === "function") {
+    pushHistoryDebounced();
+  } else if (typeof pushHistory === "function") {
+    pushHistory();
+  }
+});
+
+
 /* =========================
    TRUE UNDO + REDO (timeline states)
    ========================= */
@@ -326,6 +363,14 @@ map.on(L.Draw.Event.CREATED, (e) => {
   drawnItems.addLayer(layer);
   selectLayer(layer);
 });
+// ===== Fix Leaflet sizing glitches =====
+function fixMapSizeSoon() {
+  setTimeout(() => map.invalidateSize(true), 50);
+  setTimeout(() => map.invalidateSize(true), 250);
+}
+
+window.addEventListener("load", fixMapSizeSoon);
+fixMapSizeSoon();
 
 /* =========================
    FREE DRAW
