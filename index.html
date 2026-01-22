@@ -61,6 +61,82 @@
       font-size:12px;
       max-width: min(720px, calc(100vw - 20px));
     }
+
+    /* Right-side intel panel */
+#intelPanel{
+  position: absolute;
+  top: 10px;
+  right: 10px;     /* <-- add this */
+  left: auto;
+  width: 360px;
+  max-height: calc(100vh - 20px);
+  overflow: auto;
+  z-index: 850;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 12px;
+}
+
+.intelHeader{ display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
+.intelName{ font-weight:800; font-size:18px; }
+.intelSub{ font-size:12px; opacity:0.7; margin-top:2px; }
+
+.intelTabs{ display:flex; gap:8px; }
+.tabBtn{
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.9);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tabActive{ background: rgba(0,0,0,0.06); }
+
+.card{
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.cardTitle{ font-weight: 900; font-size: 12px; letter-spacing: 0.04em; opacity: 0.8; margin-bottom: 8px; }
+
+.field{ display:block; margin-bottom: 8px; }
+.fieldLabel{ font-size: 12px; font-weight: 700; opacity: 0.75; margin-bottom: 4px; }
+.field input, .field select, .field textarea{
+  width: 100%;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.12);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.row2{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.primaryBtn{
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  cursor: pointer;
+  font-weight: 900;
+  background: rgba(0,0,0,0.06);
+}
+
+.hint{ font-size: 12px; opacity: 0.65; margin-top: 8px; }
+.feedTop{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.feedFilters{ display:flex; gap:8px; align-items:center; }
+#filterType{ width: 120px; }
+#searchBox{ flex:1; min-width: 120px; }
+
+.feedList{ display:flex; flex-direction:column; gap:8px; }
+.emptyState{ font-size: 12px; opacity: 0.65; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.03); }
+
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
   </style>
@@ -84,6 +160,106 @@
     <label>Fill color <input id="fillColor" type="color" value="#ff0000"></label>
     <label>Fill opacity <input id="fillOpacity" type="number" min="0" max="1" step="0.05" value="0.25"></label>
   </div>
+
+  <!-- RIGHT PANEL: Intel + Notes -->
+<div id="intelPanel">
+  <div class="intelHeader">
+    <div class="intelTitle">
+      <div class="intelName">GeoTracker</div>
+      <div class="intelSub">Global Intelligence Monitoring System</div>
+    </div>
+
+    <div class="intelTabs">
+      <button id="tabFeed" class="tabBtn tabActive">Feed</button>
+      <button id="tabNotes" class="tabBtn">Notes</button>
+    </div>
+  </div>
+
+  <!-- FEED TAB -->
+  <div id="feedTab" class="tabBody">
+    <div class="card">
+      <div class="cardTitle">NEW ENTRY</div>
+
+      <div class="row2">
+        <label class="field">
+          <div class="fieldLabel">Date</div>
+          <input id="entryDate" type="date" />
+        </label>
+
+        <label class="field">
+          <div class="fieldLabel">Type</div>
+          <select id="entryType">
+            <option value="Event">Event</option>
+            <option value="Military">Military</option>
+            <option value="Tech">Tech</option>
+            <option value="Resources">Resources</option>
+            <option value="SupplyChain">Supply Chain</option>
+            <option value="Politics">Politics</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <div class="fieldLabel">Country (text for now)</div>
+        <input id="entryCountry" placeholder="United States, China, Russia..." />
+      </label>
+
+      <label class="field">
+        <div class="fieldLabel">Tags (comma separated)</div>
+        <input id="entryTags" placeholder="sanctions, shipbuilding, drones..." />
+      </label>
+
+      <label class="field">
+        <div class="fieldLabel">Intelligence Data</div>
+        <textarea id="entryText" rows="5" placeholder="Enter briefing details..."></textarea>
+      </label>
+
+      <button id="addToFeedBtn" class="primaryBtn">+ Add to Feed</button>
+      <div class="hint">Later: this will optionally link to the selected map shape.</div>
+    </div>
+
+    <div class="card">
+      <div class="feedTop">
+        <div class="cardTitle">FEED</div>
+
+        <div class="feedFilters">
+          <select id="filterType">
+            <option value="ALL">All Types</option>
+            <option value="Event">Event</option>
+            <option value="Military">Military</option>
+            <option value="Tech">Tech</option>
+            <option value="Resources">Resources</option>
+            <option value="SupplyChain">Supply Chain</option>
+            <option value="Politics">Politics</option>
+            <option value="Other">Other</option>
+          </select>
+
+          <input id="searchBox" placeholder="Search..." />
+        </div>
+      </div>
+
+      <div id="feedList" class="feedList">
+        <!-- JS will render items here next step -->
+        <div class="emptyState">No entries yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTES TAB (object-linked later) -->
+  <div id="notesTab" class="tabBody" style="display:none;">
+    <div class="card">
+      <div class="cardTitle">NOTES</div>
+      <div class="hint">
+        Click a shape/marker on the map → notes will show here (next step).
+      </div>
+
+      <div id="notesBody" class="emptyState">
+        No object selected.
+      </div>
+    </div>
+  </div>
+</div>
 
   <div id="map"></div>
 
