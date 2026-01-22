@@ -6,7 +6,6 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
   <!-- Leaflet Draw -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 
@@ -25,93 +24,83 @@
     }
 
     /* Buttons */
-    #toggleStyle, #undoBtn, #freeDrawBtn, #moveBtn{
-      position:absolute;
-      top:50px;
-      z-index:700;
-      padding:4px 8px;
-      border-radius:10px;
-      border:1px solid #ccc;
+    #toggleStyle, #undoBtn, #redoBtn, #freeDrawBtn, #moveBtn {
+      position: absolute;
+      top: 50px;
+      z-index: 700;
+      padding: 4px 8px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
       background: rgba(255,255,255,0.95);
-      cursor:pointer;
-    }
-    #toggleStyle{ left: 260px; }
-    #undoBtn{ left: 330px; }
-    #freeDrawBtn{ left: 400px; }
-    #moveBtn{ left: 510px; }
-    #redoBtn{ left: 400px; }
-
-    /* Keep Leaflet controls (zoom + draw toolbar) above other elements */
-    .leaflet-top.leaflet-left {
-      z-index: 900;
+      cursor: pointer;
     }
 
-    /* Style panel */
-   /* Style panel: top-right + starts hidden (toggle with Style button) */
-/* Style panel: top-right + starts hidden (toggle with Style button) */
-#stylePanel{
-  position:absolute;
-  top:10px;
-  right:10px;
-  left:auto;
-  z-index:800;
-  background: rgba(255,255,255,0.95);
-  padding:8px;
-  border-radius:10px;
-  display:none;              /* <-- hidden by default */
-  gap:10px;
-  flex-wrap:wrap;
-  align-items:center;
-  font-size:12px;
-  max-width: min(720px, calc(100vw - 20px));
-}
+    #toggleStyle { left: 260px; }
+    #undoBtn     { left: 330px; }
+    #redoBtn     { left: 400px; }  /* ✅ next to Undo */
+    #freeDrawBtn { left: 470px; }
+    #moveBtn     { left: 580px; }
 
+    /* Keep Leaflet controls above other elements */
+    .leaflet-top.leaflet-left { z-index: 900; }
+
+    /* Style panel: top-right, hidden by default */
+    #stylePanel{
+      position:absolute;
+      top:10px;
+      right:10px;
+      left:auto;
+      z-index:800;
+      background: rgba(255,255,255,0.95);
+      padding:8px;
+      border-radius:10px;
+      display:none;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      font-size:12px;
+      max-width: min(720px, calc(100vw - 20px));
+    }
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
   </style>
 </head>
 <body>
 
-<input type="date" id="date" />
+  <input type="date" id="date" />
 
-<button id="toggleStyle">Style</button>
-<button id="undoBtn">Undo</button>
-<button id="redoBtn">Redo</button>
-<button id="freeDrawBtn">Free Draw</button>
-<button id="moveBtn">Move</button>
+  <button id="toggleStyle">Style</button>
+  <button id="undoBtn">Undo</button>
+  <button id="redoBtn">Redo</button>
+  <button id="freeDrawBtn">Free Draw</button>
+  <button id="moveBtn">Move</button>
 
+  <div id="stylePanel">
+    <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
+    <label>Stroke width <input id="strokeWidth" type="number" min="1" max="20" value="4"></label>
+    <label>Stroke opacity <input id="strokeOpacity" type="number" min="0" max="1" step="0.05" value="0.9"></label>
 
+    <label><input id="useFill" type="checkbox" checked> Fill</label>
+    <label>Fill color <input id="fillColor" type="color" value="#ff0000"></label>
+    <label>Fill opacity <input id="fillOpacity" type="number" min="0" max="1" step="0.05" value="0.25"></label>
+  </div>
 
-<div id="stylePanel">
-  <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
-  <label>Stroke width <input id="strokeWidth" type="number" min="1" max="20" value="4"></label>
-  <label>Stroke opacity <input id="strokeOpacity" type="number" min="0" max="1" step="0.05" value="0.9"></label>
+  <div id="map"></div>
 
-  <label><input id="useFill" type="checkbox" checked> Fill</label>
-  <label>Fill color <input id="fillColor" type="color" value="#ff0000"></label>
-  <label>Fill opacity <input id="fillOpacity" type="number" min="0" max="1" step="0.05" value="0.25"></label>
+  <!-- Leaflet FIRST -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  
-</div>
+  <!-- Path drag plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
 
-<div id="map"></div>
+  <!-- Leaflet Draw -->
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
-<!-- Scripts: Leaflet FIRST -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Freehand plugin (optional) -->
+  <script src="https://unpkg.com/leaflet-freehandshapes@1.1.2/dist/leaflet-freehandshapes.min.js"></script>
 
-<!-- Path drag plugin (this one should load reliably) -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
-
-<!-- Leaflet Draw -->
-<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-<!-- Freehand plugin (optional; OK to keep) -->
-<script src="https://unpkg.com/leaflet-freehandshapes@1.1.2/dist/leaflet-freehandshapes.min.js"></script>
-
-<!-- Your app -->
-<script src="./app.js?v=19"></script>
-
-
+  <!-- Your app (bump version whenever you change app.js) -->
+  <script src="./app.js?v=20"></script>
 
 </body>
 </html>
