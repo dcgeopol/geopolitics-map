@@ -4,15 +4,13 @@
   <meta charset="utf-8" />
   <title>Geopolitical Map</title>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-<script defer src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-
-
+  <!-- ✅ MUST HAVE Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.css">
 
   <style>
     body { margin: 0; font-family: sans-serif; }
-    #map { height: 100vh; }
+    #map { height: 100vh; width: 100vw; }
 
     /* Date picker */
     #date {
@@ -42,10 +40,10 @@
     #freeDrawBtn{ left: 470px; }
     #moveBtn{     left: 580px; }
 
-    /* Keep Leaflet controls (zoom + draw toolbar) above other elements */
+    /* Keep Leaflet controls above other elements */
     .leaflet-top.leaflet-left { z-index: 900; }
 
-    /* Style panel: top-right + starts hidden (toggle with Style button) */
+    /* Style panel */
     #stylePanel{
       position:absolute;
       top:10px;
@@ -65,18 +63,15 @@
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
 
-    /* ==========================
-       RIGHT PANEL: Intel + Notes
-       ========================== */
+    /* RIGHT PANEL */
     #intelPanel{
       position: absolute;
       top: 10px;
       right: 10px;
-      left: auto;
       width: 360px;
       max-height: calc(100vh - 20px);
       overflow: auto;
-      z-index: 850; /* above stylePanel */
+      z-index: 850;
       background: rgba(255,255,255,0.96);
       border: 1px solid rgba(0,0,0,0.08);
       border-radius: 14px;
@@ -163,7 +158,6 @@
     <label>Fill opacity <input id="fillOpacity" type="number" min="0" max="1" step="0.05" value="0.25"></label>
   </div>
 
-  <!-- RIGHT PANEL: Intel + Notes -->
   <div id="intelPanel">
     <div class="intelHeader">
       <div class="intelTitle">
@@ -177,7 +171,6 @@
       </div>
     </div>
 
-    <!-- FEED TAB -->
     <div id="feedTab" class="tabBody">
       <div class="card">
         <div class="cardTitle">NEW ENTRY</div>
@@ -224,7 +217,6 @@
       <div class="card">
         <div class="feedTop">
           <div class="cardTitle">FEED</div>
-
           <div class="feedFilters">
             <select id="filterType">
               <option value="ALL">All Types</option>
@@ -247,73 +239,49 @@
       </div>
     </div>
 
-    <!-- NOTES TAB -->
     <div id="notesTab" class="tabBody" style="display:none;">
       <div class="card">
         <div class="cardTitle">NOTES</div>
-        <div class="hint">
-          Click a shape/marker on the map → notes will show here (next step).
-        </div>
-
-        <div id="notesBody" class="emptyState">
-          No object selected.
-        </div>
+        <div class="hint">Click a shape/marker on the map → notes will show here (next step).</div>
+        <div id="notesBody" class="emptyState">No object selected.</div>
       </div>
     </div>
   </div>
 
   <div id="map"></div>
-<!-- Leaflet FIRST (NO defer) -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Leaflet Draw SECOND (NO defer) -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <!-- ✅ Correct load order: Leaflet -> Leaflet.draw -> plugins -> app -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
+  <script src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
 
-<!-- Optional: path drag -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
+  <!-- ✅ Your app last (NO defer needed now) -->
+  <script src="./app.js?v=1"></script>
 
-<!-- Optional: freehand plugin -->
-<script src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
+  <!-- UI tabs -->
+  <script>
+    (function () {
+      const today = new Date().toISOString().slice(0,10);
+      const entryDate = document.getElementById('entryDate');
+      if (entryDate && !entryDate.value) entryDate.value = today;
 
-<!-- PROOF (keep for now) -->
-<script>
-  console.log("Leaflet:", typeof L);
-  console.log(
-    "Leaflet.Draw:",
-    L && L.Control ? typeof L.Control.Draw : "no L.Control"
-  );
-</script>
+      const tabFeed = document.getElementById('tabFeed');
+      const tabNotes = document.getElementById('tabNotes');
+      const feedTab = document.getElementById('feedTab');
+      const notesTab = document.getElementById('notesTab');
 
-<!-- Your app LAST (defer is OK here) -->
-<script defer src="./app.js?v=26"></script>
+      function setTab(which) {
+        const feedOn = which === 'feed';
+        if (feedTab) feedTab.style.display = feedOn ? '' : 'none';
+        if (notesTab) notesTab.style.display = feedOn ? 'none' : '';
+        if (tabFeed) tabFeed.classList.toggle('tabActive', feedOn);
+        if (tabNotes) tabNotes.classList.toggle('tabActive', !feedOn);
+      }
 
-
-
-
-<!-- Tiny UI wiring (defer!!) -->
-<script defer>
-  (function () {
-    const today = new Date().toISOString().slice(0,10);
-    const entryDate = document.getElementById('entryDate');
-    if (entryDate && !entryDate.value) entryDate.value = today;
-
-    const tabFeed = document.getElementById('tabFeed');
-    const tabNotes = document.getElementById('tabNotes');
-    const feedTab = document.getElementById('feedTab');
-    const notesTab = document.getElementById('notesTab');
-
-    function setTab(which) {
-      const feedOn = which === 'feed';
-      if (feedTab) feedTab.style.display = feedOn ? '' : 'none';
-      if (notesTab) notesTab.style.display = feedOn ? 'none' : '';
-      if (tabFeed) tabFeed.classList.toggle('tabActive', feedOn);
-      if (tabNotes) tabNotes.classList.toggle('tabActive', !feedOn);
-    }
-
-    if (tabFeed) tabFeed.addEventListener('click', () => setTab('feed'));
-    if (tabNotes) tabNotes.addEventListener('click', () => setTab('notes'));
-  })();
-</script>
-
+      if (tabFeed) tabFeed.addEventListener('click', () => setTab('feed'));
+      if (tabNotes) tabNotes.addEventListener('click', () => setTab('notes'));
+    })();
+  </script>
 </body>
 </html>
