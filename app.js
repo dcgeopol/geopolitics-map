@@ -120,6 +120,8 @@ function setMarkerLabel(marker, text) {
 const drawnItems = new L.FeatureGroup().addTo(map);
 let selectedLayer = null;
 
+pushHistory({ clearRedo: false }); // initial empty state
+
 function selectLayer(layer) {
   selectedLayer = layer;
   if (moveEnabled) showTransformHandles();
@@ -131,167 +133,79 @@ function wireSelectable(layer) {
 }
 
 /* =========================
-   TRUE UNDO + REDO (snapshots)
-   ========================= */
+TRUE UNDO + REDO (timeline states)
+========================= */
+
 const history = [];
 const redoStack = [];
-let lastSnapshotJson = "";
-let snapshotTimer = null;
 
-function serializeState() {
-  const layers = [];
-  drawnItems.eachLayer(layer => {
-    // Marker pin
-    if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
-      layers.push({
-        type: "marker",
-        latlng: layer.getLatLng(),
-        label: layer.__label || "",
-        markerColor: layer.__markerColor || "#ff0000",
-        markerOpacity: layer.__markerOpacity ?? 1
-      });
-      return;
-    }
-
-    // Circle
-    if (layer instanceof L.Circle) {
-      layers.push({
-        type: "circle",
-        latlng: layer.getLatLng(),
-        radius: layer.getRadius(),
-        style: pickStyle(layer.options)
-      });
-      return;
-    }
-
-    // Polyline/Polygon
-    if (layer instanceof L.Polyline) {
-      layers.push({
-        type: (layer instanceof L.Polygon) ? "polygon" : "polyline",
-        latlngs: layer.getLatLngs(),
-        style: pickStyle(layer.options),
-        angleRad: layer.__angleRad || 0
-      });
-      return;
-    }
-  });
-
-  return { layers };
+function statesEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function pickStyle(opts) {
-  return {
-    color: opts.color,
-    weight: opts.weight,
-    opacity: opts.opacity,
-    fill: opts.fill,
-    fillColor: opts.fillColor,
-    fillOpacity: opts.fillOpacity,
-    lineCap: opts.lineCap,
-    lineJoin: opts.lineJoin
-  };
-}
-
-function restoreState(state) {
-  drawnItems.clearLayers();
-  hideTransformHandles();
-  selectedLayer = null;
-
-  (state.layers || []).forEach(obj => {
-    let layer;
-
-    if (obj.type === "marker") {
-      layer = L.marker(obj.latlng, {
-        icon: makePinIcon(obj.markerColor, obj.markerOpacity)
-      });
-      layer.__markerColor = obj.markerColor;
-      layer.__markerOpacity = obj.markerOpacity;
-      setMarkerLabel(layer, obj.label);
-
-      wireSelectable(layer);
-
-      layer.on("dblclick", () => {
-        const next = prompt("Marker label:", layer.__label || "") ?? (layer.__label || "");
-        pushHistory();
-        setMarkerLabel(layer, next);
-      });
-
-      drawnItems.addLayer(layer);
-      return;
-    }
-
-    if (obj.type === "circle") {
-      layer = L.circle(obj.latlng, { ...obj.style, radius: obj.radius });
-      wireSelectable(layer);
-      drawnItems.addLayer(layer);
-      return;
-    }
-
-    if (obj.type === "polyline") {
-      layer = L.polyline(obj.latlngs, obj.style);
-      layer.__angleRad = obj.angleRad || 0;
-      wireSelectable(layer);
-      drawnItems.addLayer(layer);
-      return;
-    }
-
-    if (obj.type === "polygon") {
-      layer = L.polygon(obj.latlngs, obj.style);
-      layer.__angleRad = obj.angleRad || 0;
-      wireSelectable(layer);
-      drawnItems.addLayer(layer);
-      return;
-    }
-  });
-
-  if (moveEnabled) showTransformHandles();
-}
-
-function pushHistory() {
+// Always keep the "current state" as the last history entry.
+function pushHistory({ clearRedo = true } = {}) {
   const state = serializeState();
-  const json = JSON.stringify(state);
-  if (json === lastSnapshotJson) return;
+
+  if (history.length > 0) {
+    const last = history[history.length - 1];
+    if (statesEqual(last, state)) return; // no-op change
+  }
 
   history.push(state);
-  lastSnapshotJson = json;
 
-  // ✅ any NEW action wipes redo (standard undo behavior)
-  redoStack.length = 0;
-
+  if (clearRedo) redoStack.length = 0;
   if (history.length > 250) history.shift();
 }
 
-function pushHistoryDebounced(delayMs = 120) {
-  if (snapshotTimer) clearTimeout(snapshotTimer);
-  snapshotTimer = setTimeout(() => {
-    pushHistory();
-    snapshotTimer = null;
-  }, delayMs);
-}
-
 function undo() {
-  if (history.length < 1) return;
+  // Need at least 2 states to undo: [prev, current]
+  if (history.length < 2) return;
 
-  // Push current into redo, then restore last history
-  const current = serializeState();
-  redoStack.push(current);
+  const current = history.pop();     // remove current
+  redoStack.push(current);           // save for redo
 
-  const prev = history.pop();
-  lastSnapshotJson = JSON.stringify(prev);
+  const prev = history[history.length - 1];
   restoreState(prev);
+
+  if (moveEnabled) showTransformHandles();
 }
 
 function redo() {
   if (redoStack.length < 1) return;
 
-  // Push current into history, then restore redo state
-  const current = serializeState();
-  history.push(current);
-
   const next = redoStack.pop();
-  lastSnapshotJson = JSON.stringify(next);
+  history.push(next);
   restoreState(next);
+
+  if (moveEnabled) showTransformHandles();
 }
+
+// Wire buttons
+if (undoBtn) undoBtn.onclick = undo;
+
+const redoBtn = document.getElementById("redoBtn");
+if (redoBtn) redoBtn.onclick = redo;
+
+// Keyboard shortcuts (optional but nice)
+document.addEventListener("keydown", (e) => {
+  const isMac = navigator.platform.toUpperCase().includes("MAC");
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+
+  if (!mod) return;
+
+  // Ctrl/Cmd+Z => undo
+  if (e.key.toLowerCase() === "z" && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  }
+
+  // Ctrl/Cmd+Shift+Z => redo
+  if (e.key.toLowerCase() === "z" && e.shiftKey) {
+    e.preventDefault();
+    redo();
+  }
+});
 
 if (undoBtn) undoBtn.onclick = undo;
 
