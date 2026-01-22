@@ -36,13 +36,13 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // Store all drawn shapes/markers here
 const drawnItems = new L.FeatureGroup().addTo(map);
 
-// ✅ Add the Leaflet.Draw toolbar ONCE
+// Draw + Edit toolbar (edit/remove ON)
 const drawControl = new L.Control.Draw({
   position: "topleft",
   edit: {
     featureGroup: drawnItems,
-    edit: true,     // ✅ allow editing
-    remove: true    // ✅ allow deleting
+    edit: true,
+    remove: true
   },
   draw: {
     polyline: true,
@@ -53,82 +53,8 @@ const drawControl = new L.Control.Draw({
     circlemarker: false
   }
 });
+
 map.addControl(drawControl);
-/* =========================
-   UNDO / REDO (GeoJSON snapshots)
-   ========================= */
-
-const history = [];
-let historyIndex = -1;
-
-function serializeState() {
-  return drawnItems.toGeoJSON();
-}
-
-function restoreState(geojson) {
-  drawnItems.clearLayers();
-
-  L.geoJSON(geojson, {
-    pointToLayer: (feature, latlng) => L.marker(latlng),
-    onEachFeature: (feature, layer) => {
-      drawnItems.addLayer(layer);
-
-      // If you have selection wiring, reattach it
-      if (typeof wireSelectable === "function") wireSelectable(layer);
-    }
-  });
-}
-
-function pushHistory() {
-  const snap = serializeState();
-
-  // Cut off any "future" states if we undid then changed something
-  history.splice(historyIndex + 1);
-
-  history.push(snap);
-  historyIndex = history.length - 1;
-
-  // optional cap
-  if (history.length > 200) {
-    history.shift();
-    historyIndex--;
-  }
-}
-
-function undo() {
-  if (historyIndex <= 0) return;
-  historyIndex--;
-  restoreState(history[historyIndex]);
-}
-
-function redo() {
-  if (historyIndex >= history.length - 1) return;
-  historyIndex++;
-  restoreState(history[historyIndex]);
-}
-
-
-
-// ✅ Handle “shape created” ONCE
-map.on(L.Draw.Event.CREATED, (e) => {
-  const layer = e.layer;
-  drawnItems.addLayer(layer);
-
-  if (typeof wireSelectable === "function") wireSelectable(layer);
-  if (typeof selectLayer === "function") selectLayer(layer);
-
-  if (typeof pushHistoryDebounced === "function") pushHistoryDebounced();
-  else if (typeof pushHistory === "function") pushHistory();
-});
-// Save state after creating shapes
-map.on(L.Draw.Event.CREATED, () => pushHistory());
-
-// Save state after editing
-map.on(L.Draw.Event.EDITED, () => pushHistory());
-
-// Save state after deleting
-map.on(L.Draw.Event.DELETED, () => pushHistory());
-pushHistory(); // initial empty state
 
 // ✅ Fix tile gaps / weird rendering (right panel resizing)
 function fixMapSizeHard() {
@@ -245,121 +171,102 @@ function setMarkerLabel(marker, text) {
 
 
 
-map.addControl(drawControl);
-
-// When a shape is created
-map.on(L.Draw.Event.CREATED, (e) => {
-  const layer = e.layer;
-
-  drawnItems.addLayer(layer);
-  wireSelectable(layer);
-  selectLayer(layer);
-
-  // Save undo snapshot
-  if (typeof pushHistoryDebounced === "function") {
-    pushHistoryDebounced();
-  } else if (typeof pushHistory === "function") {
-    pushHistory();
-  }
-});
-
-
 /* =========================
-   TRUE UNDO + REDO (timeline states)
+   UNDO / REDO (GeoJSON snapshots)
    ========================= */
+
 const history = [];
-const redoStack = [];
+let historyIndex = -1;
 
 function serializeState() {
-  return {
-    layers: drawnItems.toGeoJSON()
-  };
+  return drawnItems.toGeoJSON();
 }
 
-function statesEqual(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
+function restoreState(geojson) {
+  drawnItems.clearLayers();
+
+  L.geoJSON(geojson, {
+    pointToLayer: (feature, latlng) => {
+      // Leaflet.Draw circles store radius in properties.radius
+      const r = feature?.properties?.radius;
+      if (typeof r === "number" && r > 0) {
+        return L.circle(latlng, { radius: r });
+      }
+      return L.marker(latlng);
+    },
+    onEachFeature: (feature, layer) => {
+      drawnItems.addLayer(layer);
+      if (typeof wireSelectable === "function") wireSelectable(layer);
+    }
+  });
 }
 
-// Always keep the "current state" as the last history entry.
-function pushHistory({ clearRedo = true } = {}) {
-  const state = serializeState();
 
-  if (history.length > 0) {
-    const last = history[history.length - 1];
-    if (statesEqual(last, state)) return; // no-op change
+function pushHistory() {
+  const snap = serializeState();
+
+  // cut off any future states if we undid then changed something
+  history.splice(historyIndex + 1);
+
+  history.push(snap);
+  historyIndex = history.length - 1;
+
+  if (history.length > 200) {
+    history.shift();
+    historyIndex--;
   }
-
-  history.push(state);
-
-  if (clearRedo) redoStack.length = 0;
-  if (history.length > 250) history.shift();
 }
 
 function undo() {
-  // Need at least 2 states to undo: [prev, current]
-  if (history.length < 2) return;
-
-  const current = history.pop();     // remove current
-  redoStack.push(current);           // save for redo
-
-  const prev = history[history.length - 1];
-  restoreState(prev);
-
-  if (moveEnabled) showTransformHandles();
+  if (historyIndex <= 0) return;
+  historyIndex--;
+  restoreState(history[historyIndex]);
 }
 
 function redo() {
-  if (redoStack.length < 1) return;
-
-  const next = redoStack.pop();
-  history.push(next);
-  restoreState(next);
-
-  if (moveEnabled) showTransformHandles();
+  if (historyIndex >= history.length - 1) return;
+  historyIndex++;
+  restoreState(history[historyIndex]);
 }
 
-/* initial empty state snapshot */
-pushHistory({ clearRedo: false });
 
-function selectLayer(layer) {
-  selectedLayer = layer;
-  if (moveEnabled) showTransformHandles();
-}
 
-function wireSelectable(layer) {
-  layer.off("click");
-  layer.on("click", () => selectLayer(layer));
-}
 
-// Wire buttons (ONLY ONCE)
-if (undoBtn) undoBtn.onclick = undo;
-
-const redoBtn = document.getElementById("redoBtn");
-if (redoBtn) redoBtn.onclick = redo;
-
-// Keyboard shortcuts (optional but nice)
+// Keyboard shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
 document.addEventListener("keydown", (e) => {
   const isMac = navigator.platform.toUpperCase().includes("MAC");
   const mod = isMac ? e.metaKey : e.ctrlKey;
-
   if (!mod) return;
 
-  // Ctrl/Cmd+Z => undo
   if (e.key.toLowerCase() === "z" && !e.shiftKey) {
     e.preventDefault();
     undo();
   }
-
-  // Ctrl/Cmd+Shift+Z => redo
   if (e.key.toLowerCase() === "z" && e.shiftKey) {
     e.preventDefault();
     redo();
   }
 });
 
+// Record history on draw/create/edit/delete
+map.on(L.Draw.Event.CREATED, (e) => {
+  const layer = e.layer;
+  drawnItems.addLayer(layer);
+
+  if (typeof wireSelectable === "function") wireSelectable(layer);
+  if (typeof selectLayer === "function") selectLayer(layer);
+
+  pushHistory();
+});
+
+map.on(L.Draw.Event.EDITED, () => pushHistory());
+map.on(L.Draw.Event.DELETED, () => pushHistory());
+
+// Initial empty snapshot
+pushHistory();
 
 
-if (undoBtn) undoBtn.onclick = undo;
+
 
 
 
@@ -394,7 +301,8 @@ function applyStyle(layer) {
   if (!el) return;
   el.addEventListener("input", () => {
     if (!selectedLayer) return;
-    pushHistoryDebounced();
+    pushHistory();
+
     applyStyle(selectedLayer);
     if (moveEnabled) showTransformHandles();
   });
