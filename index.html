@@ -251,24 +251,10 @@
 
   <div id="map"></div>
 
-<!-- Leaflet FIRST -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="./app.js?v=999"></script>
 
-<!-- Leaflet.Draw SECOND (use jsDelivr for reliability) -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-<!-- Plugins (optional) -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
-<script src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
-
-<!-- PROOF (temporary) -->
-<script>
-  console.log("Leaflet:", typeof L);
-  console.log("Leaflet.Draw:", L && L.Control ? typeof L.Control.Draw : "no L.Control");
-</script>
-
-<!-- Your app LAST -->
-<script src="./app.js?v=7"></script>
 
 
 
