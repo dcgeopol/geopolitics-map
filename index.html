@@ -264,46 +264,45 @@
 
   <div id="map"></div>
 
-  <!-- Scripts: Leaflet FIRST -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Scripts: Leaflet FIRST -->
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Path drag plugin (this one should load reliably) -->
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
+<!-- Path drag plugin -->
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
 
-  <!-- Leaflet Draw -->
-  <script src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
+<!-- Leaflet Draw -->
+<script defer src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
 
-  <!-- Freehand plugin (optional; OK to keep) -->
-  <script src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
+<!-- Freehand plugin -->
+<script defer src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
 
-  <!-- Your app -->
-  <script src="./app.js?v=18"></script>
+<!-- Your app (defer!!) -->
+<script defer src="./app.js?v=18"></script>
 
-  <!-- Tiny UI wiring (does NOT touch your map code) -->
-  <script>
-    (function () {
-      // Default the entryDate to today
-      const today = new Date().toISOString().slice(0,10);
-      const entryDate = document.getElementById('entryDate');
-      if (entryDate && !entryDate.value) entryDate.value = today;
+<!-- Tiny UI wiring (defer!!) -->
+<script defer>
+  (function () {
+    const today = new Date().toISOString().slice(0,10);
+    const entryDate = document.getElementById('entryDate');
+    if (entryDate && !entryDate.value) entryDate.value = today;
 
-      // Tab switching
-      const tabFeed = document.getElementById('tabFeed');
-      const tabNotes = document.getElementById('tabNotes');
-      const feedTab = document.getElementById('feedTab');
-      const notesTab = document.getElementById('notesTab');
+    const tabFeed = document.getElementById('tabFeed');
+    const tabNotes = document.getElementById('tabNotes');
+    const feedTab = document.getElementById('feedTab');
+    const notesTab = document.getElementById('notesTab');
 
-      function setTab(which) {
-        const feedOn = which === 'feed';
-        if (feedTab) feedTab.style.display = feedOn ? '' : 'none';
-        if (notesTab) notesTab.style.display = feedOn ? 'none' : '';
-        if (tabFeed) tabFeed.classList.toggle('tabActive', feedOn);
-        if (tabNotes) tabNotes.classList.toggle('tabActive', !feedOn);
-      }
+    function setTab(which) {
+      const feedOn = which === 'feed';
+      if (feedTab) feedTab.style.display = feedOn ? '' : 'none';
+      if (notesTab) notesTab.style.display = feedOn ? 'none' : '';
+      if (tabFeed) tabFeed.classList.toggle('tabActive', feedOn);
+      if (tabNotes) tabNotes.classList.toggle('tabActive', !feedOn);
+    }
 
-      if (tabFeed) tabFeed.addEventListener('click', () => setTab('feed'));
-      if (tabNotes) tabNotes.addEventListener('click', () => setTab('notes'));
-    })();
-  </script>
+    if (tabFeed) tabFeed.addEventListener('click', () => setTab('feed'));
+    if (tabNotes) tabNotes.addEventListener('click', () => setTab('notes'));
+  })();
+</script>
+
 </body>
 </html>
