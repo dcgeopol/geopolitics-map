@@ -6,13 +6,13 @@ const map = L.map("map", {
   zoomSnap: 0.25,
   zoomDelta: 0.25
 }).setView([20, 0], 2);
+
 // Fix default Leaflet marker icons on GitHub Pages
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
-
 
 // Cylinder behavior (clamp lat, normalize lng)
 map.on("moveend", () => {
@@ -24,10 +24,7 @@ map.on("moveend", () => {
   if (lat !== c.lat || lng !== c.lng) map.panTo([lat, lng], { animate: false });
 });
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap"
-}).addTo(map);
-
+// ✅ Add tile layer ONCE
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap"
 }).addTo(map);
@@ -36,40 +33,15 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
    DRAW LAYERS (Leaflet.Draw)
    ========================= */
 
-// Group to store all drawn shapes/markers
+// Store all drawn shapes/markers here
 const drawnItems = new L.FeatureGroup().addTo(map);
-const drawControl = new L.Control.Draw({
-  position: "topleft",
-  edit: { featureGroup: drawnItems },
-  draw: {
-    polyline: true,
-    polygon: true,
-    rectangle: true,
-    circle: true,
-    marker: true,
-    circlemarker: false
-  }
-});
-map.addControl(drawControl);
 
-map.on(L.Draw.Event.CREATED, (e) => {
-  const layer = e.layer;
-  drawnItems.addLayer(layer);
-
-  if (typeof wireSelectable === "function") wireSelectable(layer);
-  if (typeof selectLayer === "function") selectLayer(layer);
-
-  if (typeof pushHistoryDebounced === "function") pushHistoryDebounced();
-  else if (typeof pushHistory === "function") pushHistory();
-});
-
-
-// Add the Leaflet.Draw toolbar
+// ✅ Add the Leaflet.Draw toolbar ONCE
 const drawControl = new L.Control.Draw({
   position: "topleft",
   edit: {
     featureGroup: drawnItems,
-    edit: false,
+    edit: false,   // you use custom transform handles
     remove: false
   },
   draw: {
@@ -83,7 +55,7 @@ const drawControl = new L.Control.Draw({
 });
 map.addControl(drawControl);
 
-// When the user finishes drawing something
+// ✅ Handle “shape created” ONCE
 map.on(L.Draw.Event.CREATED, (e) => {
   const layer = e.layer;
   drawnItems.addLayer(layer);
@@ -95,7 +67,16 @@ map.on(L.Draw.Event.CREATED, (e) => {
   else if (typeof pushHistory === "function") pushHistory();
 });
 
-
+// ✅ Fix tile gaps / weird rendering (right panel resizing)
+function fixMapSizeHard() {
+  map.invalidateSize(true);
+  setTimeout(() => map.invalidateSize(true), 100);
+  setTimeout(() => map.invalidateSize(true), 300);
+  setTimeout(() => map.invalidateSize(true), 800);
+}
+window.addEventListener("load", fixMapSizeHard);
+window.addEventListener("resize", fixMapSizeHard);
+setTimeout(fixMapSizeHard, 0);
 
 /* =========================
    DOM
@@ -195,23 +176,6 @@ function setMarkerLabel(marker, text) {
    ========================= */
 
 
-// ===== Leaflet Draw toolbar =====
-const drawControl = new L.Control.Draw({
-  position: "topleft",
-  edit: {
-    featureGroup: drawnItems,
-    edit: false,   // you use custom transform handles
-    remove: false
-  },
-  draw: {
-    polyline: true,
-    polygon: true,
-    rectangle: true,
-    circle: true,
-    marker: true,
-    circlemarker: false
-  }
-});
 
 map.addControl(drawControl);
 
