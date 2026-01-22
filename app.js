@@ -120,6 +120,12 @@ function setMarkerLabel(marker, text) {
 const drawnItems = new L.FeatureGroup().addTo(map);
 let selectedLayer = null;
 
+function serializeState() {
+  return {
+    layers: drawnItems.toGeoJSON()
+  };
+}
+
 pushHistory({ clearRedo: false }); // initial empty state
 
 function selectLayer(layer) {
