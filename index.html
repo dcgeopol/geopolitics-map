@@ -263,31 +263,30 @@
   </div>
 
   <div id="map"></div>
-<!-- Leaflet (must be first) -->
-<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet FIRST (NO defer) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Leaflet Draw (must be after Leaflet) -->
-<script defer src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
+<!-- Leaflet Draw SECOND (NO defer) -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
-<!-- Optional: path drag (after Leaflet) -->
-<script defer src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
+<!-- Optional: path drag -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-path-drag@0.0.14/dist/L.Path.Drag.js"></script>
 
 <!-- Optional: freehand plugin -->
-<script defer src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
+<script src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
 
-<!-- PROOF: confirm Leaflet + Draw loaded -->
-<script defer>
-  window.addEventListener("DOMContentLoaded", () => {
-    console.log("Leaflet:", typeof L);
-    console.log(
-      "Leaflet.Draw:",
-      L && L.Control ? typeof L.Control.Draw : "no L.Control"
-    );
-  });
+<!-- PROOF (keep for now) -->
+<script>
+  console.log("Leaflet:", typeof L);
+  console.log(
+    "Leaflet.Draw:",
+    L && L.Control ? typeof L.Control.Draw : "no L.Control"
+  );
 </script>
 
-<!-- Your app LAST -->
-<script defer src="./app.js?v=23"></script>
+<!-- Your app LAST (defer is OK here) -->
+<script defer src="./app.js?v=24"></script>
+
 
 
 
