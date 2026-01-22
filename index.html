@@ -4,8 +4,10 @@
   <meta charset="utf-8" />
   <title>Geopolitical Map</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+
 
 
   <style>
@@ -273,8 +275,20 @@
 <!-- Optional: freehand plugin -->
 <script defer src="https://unpkg.com/leaflet-freehandshapes@1.0.0/dist/leaflet-freehandshapes.min.js"></script>
 
+<!-- PROOF: confirm Leaflet + Draw loaded -->
+<script defer>
+  window.addEventListener("DOMContentLoaded", () => {
+    console.log("Leaflet:", typeof L);
+    console.log(
+      "Leaflet.Draw:",
+      L && L.Control ? typeof L.Control.Draw : "no L.Control"
+    );
+  });
+</script>
+
 <!-- Your app LAST -->
-<script defer src="./app.js?v=22"></script>
+<script defer src="./app.js?v=23"></script>
+
 
 
 <!-- Tiny UI wiring (defer!!) -->
