@@ -41,8 +41,8 @@ const drawControl = new L.Control.Draw({
   position: "topleft",
   edit: {
     featureGroup: drawnItems,
-    edit: false,   // you use custom transform handles
-    remove: false
+    edit: true,     // ✅ allow editing
+    remove: true    // ✅ allow deleting
   },
   draw: {
     polyline: true,
@@ -54,6 +54,60 @@ const drawControl = new L.Control.Draw({
   }
 });
 map.addControl(drawControl);
+/* =========================
+   UNDO / REDO (GeoJSON snapshots)
+   ========================= */
+
+const history = [];
+let historyIndex = -1;
+
+function serializeState() {
+  return drawnItems.toGeoJSON();
+}
+
+function restoreState(geojson) {
+  drawnItems.clearLayers();
+
+  L.geoJSON(geojson, {
+    pointToLayer: (feature, latlng) => L.marker(latlng),
+    onEachFeature: (feature, layer) => {
+      drawnItems.addLayer(layer);
+
+      // If you have selection wiring, reattach it
+      if (typeof wireSelectable === "function") wireSelectable(layer);
+    }
+  });
+}
+
+function pushHistory() {
+  const snap = serializeState();
+
+  // Cut off any "future" states if we undid then changed something
+  history.splice(historyIndex + 1);
+
+  history.push(snap);
+  historyIndex = history.length - 1;
+
+  // optional cap
+  if (history.length > 200) {
+    history.shift();
+    historyIndex--;
+  }
+}
+
+function undo() {
+  if (historyIndex <= 0) return;
+  historyIndex--;
+  restoreState(history[historyIndex]);
+}
+
+function redo() {
+  if (historyIndex >= history.length - 1) return;
+  historyIndex++;
+  restoreState(history[historyIndex]);
+}
+
+
 
 // ✅ Handle “shape created” ONCE
 map.on(L.Draw.Event.CREATED, (e) => {
@@ -66,6 +120,15 @@ map.on(L.Draw.Event.CREATED, (e) => {
   if (typeof pushHistoryDebounced === "function") pushHistoryDebounced();
   else if (typeof pushHistory === "function") pushHistory();
 });
+// Save state after creating shapes
+map.on(L.Draw.Event.CREATED, () => pushHistory());
+
+// Save state after editing
+map.on(L.Draw.Event.EDITED, () => pushHistory());
+
+// Save state after deleting
+map.on(L.Draw.Event.DELETED, () => pushHistory());
+pushHistory(); // initial empty state
 
 // ✅ Fix tile gaps / weird rendering (right panel resizing)
 function fixMapSizeHard() {
@@ -84,6 +147,11 @@ setTimeout(fixMapSizeHard, 0);
 const stylePanel = document.getElementById("stylePanel");
 const toggleStyleBtn = document.getElementById("toggleStyle");
 const undoBtn = document.getElementById("undoBtn");
+const redoBtn = document.getElementById("redoBtn");
+
+if (undoBtn) undoBtn.onclick = undo;
+if (redoBtn) redoBtn.onclick = redo;
+
 const freeDrawBtn = document.getElementById("freeDrawBtn");
 const moveBtn = document.getElementById("moveBtn");
 
