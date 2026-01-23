@@ -66,7 +66,9 @@
       flex-wrap:wrap;
       align-items:center;
       font-size:12px;
-      max-width: min(720px, calc(100vw - 420px)); /* leave room for right panel */
+     max-width: calc(100vw - 380px - 30px); /* 380 = intel panel width, 30 = padding buffer */
+overflow: auto;
+
       border: 1px solid rgba(0,0,0,0.10);
       box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
@@ -326,7 +328,7 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
   <!-- Your app last -->
-  <script src="./app.js?v=1"></script>
+  <script src="./app.js?v=2"></script>
 
   <!-- Tiny UI wiring (tabs + default date) -->
   <script>
