@@ -220,12 +220,14 @@ function setMarkerLabel(marker, text) {
      Draw layers (Leaflet.draw)
   --------------------------- */
   const drawnItems = new L.FeatureGroup().addTo(map);
+   function escapeHtml(s) {
 function escapeHtml(s) {
   return String(s || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
     .replaceAll("'", "&#39;");
 }
 
@@ -1109,31 +1111,213 @@ if (pickPointBtn) {
     if (tags.textContent) card.appendChild(tags);
 
     if (x.linkedLayerId) {
-  card.addEventListener("click", () => {
-    let found = null;
+      card.addEventListener("click", () => {
+        let found = null;
+        drawnItems.eachLa
 
-    drawnItems.eachLayer((layer) => {
-      if (layer && layer.__id === x.linkedLayerId) found = layer;
-    });
 
-    if (!found) return;
+  function renderNotesPanel() {
+    if (!notesBody) return;
 
-    // Zoom to it
-    if (found.getBounds) {
-      map.fitBounds(found.getBounds().pad(0.4));
-    } else if (found.getLatLng) {
-      map.setView(found.getLatLng(), Math.max(map.getZoom(), 6));
+    if (!selectedLayer || !selectedLayer.__id) {
+      notesBody.className = "emptyState";
+      notesBody.textContent = "No object selected.";
+      return;
     }
 
-    // Open popup (marker intel)
-    if (found.openPopup) found.openPopup();
+    const notesMap = getNotesMap();
+    const notes = notesMap[selectedLayer.__id] || [];
 
-    // Select it (so Notes tab updates)
-    if (typeof selectLayer === "function") selectLayer(found);
-    if (typeof renderNotesPanel === "function") renderNotesPanel();
-  });
+    notesBody.className = "";
+    notesBody.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.alignItems = "center";
+    header.style.gap = "8px";
+    header.style.marginBottom = "8px";
+
+    const h = document.createElement("div");
+    h.style.fontWeight = "900";
+    h.style.fontSize = "12px";
+    h.style.opacity = "0.8";
+    h.textContent = "Selected object notes";
+
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "+ Add note";
+    addBtn.className = "primaryBtn";
+    addBtn.style.width = "auto";
+    addBtn.style.padding = "6px 10px";
+
+    addBtn.onclick = () => {
+      const text = prompt("Note text:");
+      if (text == null) return;
+      const entry = { id: uid(), text: String(text), ts: new Date().toISOString() };
+      notes.push(entry);
+      notesMap[selectedLayer.__id] = notes;
+      setNotesMap(notesMap);
+      renderNotesPanel();
+    };
+
+    header.appendChild(h);
+    header.appendChild(addBtn);
+    notesBody.appendChild(header);
+
+    if (notes.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "emptyState";
+      empty.textContent = "No notes yet for this object.";
+      notesBody.appendChild(empty);
+      return;
+    }
+
+    notes.slice().reverse().forEach((n) => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const t = document.createElement("div");
+      t.className = "cardTitle";
+      t.textContent = new Date(n.ts).toLocaleString();
+
+      const b = document.createElement("div");
+      b.style.whiteSpace = "pre-wrap";
+      b.textContent = n.text;
+
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.gap = "8px";
+      row.style.marginTop = "8px";
+
+      const edit = document.createElement("button");
+      edit.textContent = "Edit";
+      edit.className = "tabBtn";
+      edit.onclick = () => {
+        const next = prompt("Edit note:", n.text);
+        if (next == null) return;
+        n.text = String(next);
+        setNotesMap(notesMap);
+        renderNotesPanel();
+      };
+
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.className = "tabBtn";
+      del.onclick = () => {
+        const idx = notes.findIndex((x) => x.id === n.id);
+        if (idx >= 0) notes.splice(idx, 1);
+        notesMap[selectedLayer.__id] = notes;
+        setNotesMap(notesMap);
+        renderNotesPanel();
+      };
+
+      row.appendChild(edit);
+      row.appendChild(del);
+
+      card.appendChild(t);
+      card.appendChild(b);
+      card.appendChild(row);
+
+      notesBody.appendChild(card);
+    });
+  }
+
+if (addToFeedBtn) {
+  addToFeedBtn.onclick = () => {
+
+    // 1) Decide what this entry is linked to:
+    // - If a marker is selected, link to it
+    // - Else, if you picked a point, create a marker there and link to it
+    let linkedLayerId = null;
+
+    // Link only to markers (because markers show popup on click)
+    if (selectedLayer && selectedLayer instanceof L.Marker && selectedLayer.__id) {
+      linkedLayerId = selectedLayer.__id;
+    }
+
+    // If no selected marker, but user picked a map point, create a marker there
+    // Create a marker at the picked point (optional)
+if (!linkedLayerId && pickedPoint) {
+  const m = L.marker(pickedPoint, { draggable: false });
+
+  // give the new marker a stable id so we can link entries to it
+  m.__id = uid();
+
+  // IMPORTANT: make it look exactly like a Draw-marker (your SVG pin)
+  // (applyStyle() already uses makePinIcon + stores __markerColor/__markerOpacity)
+  if (typeof applyStyle === "function") applyStyle(m);
+
+  // safety: never show persistent tooltip text on markers
+  if (m.getTooltip && m.getTooltip()) m.unbindTooltip();
+
+  // add marker to map data
+  drawnItems.addLayer(m);
+
+  // make it selectable
+  if (typeof wireSelectable === "function") wireSelectable(m);
+  if (typeof selectLayer === "function") selectLayer(m);
+
+  linkedLayerId = m.__id;
+
+  // clear pick point preview
+  pickedPoint = null;
+  if (pickedPointPreview) {
+    pickedPointPreview.remove();
+    pickedPointPreview = null;
+  }
+  setPickedPointStatus();
 }
 
+      // If you have history, record marker creation
+      if (typeof pushHistory === "function") pushHistory();
+    }
+
+    // 2) Build the entry
+    const item = {
+      id: uid(),
+      createdAt: new Date().toISOString(),
+      date: entryDate?.value || new Date().toISOString().slice(0, 10),
+
+      title: (entryTitle?.value || "").trim(),
+      type: entryType?.value || "Other",
+
+      country: (entryCountry?.value || "").trim(),
+      province: (entryProvince?.value || "").trim(),
+      city: (entryCity?.value || "").trim(),
+
+      tags: (entryTags?.value || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+
+      text: (entryText?.value || "").trim(),
+
+      linkedLayerId: linkedLayerId
+    };
+
+    // 3) Save to feed
+    const feed = getFeed();
+    feed.push(item);
+    setFeed(feed);
+
+    // 4) Clear inputs
+    if (entryTitle) entryTitle.value = "";
+    if (entryCountry) entryCountry.value = "";
+    if (entryProvince) entryProvince.value = "";
+    if (entryCity) entryCity.value = "";
+    if (entryTags) entryTags.value = "";
+    if (entryText) entryText.value = "";
+
+    // 5) Re-render UI
+    renderFeed();
+
+    // 6) Update marker popups if you implemented it
+    if (typeof refreshLinkedMarkerPopups === "function") {
+      refreshLinkedMarkerPopups();
+    }
+  };
+      })
+      }
 
 
   if (filterType) filterType.addEventListener("change", renderFeed);
