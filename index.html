@@ -140,10 +140,34 @@
     }
 
     .hint{ font-size: 12px; opacity: 0.65; margin-top: 8px; }
-    .feedTop{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-    .feedFilters{ display:flex; gap:8px; align-items:center; }
+
+    /* FEED filters row: allow wrap so we can fit country/province/city inputs */
+    .feedTop{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:8px;
+    }
+    .feedFilters{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+
     #filterType{ width: 140px; }
-    #searchBox{ flex:1; min-width: 120px; }
+
+    /* New filters */
+    #filterCountry, #filterProvince, #filterCity {
+      width: 140px;
+    }
+
+    #searchBox{
+      flex:1;
+      min-width: 160px;
+    }
 
     .feedList{ display:flex; flex-direction:column; gap:8px; }
     .emptyState{ font-size: 12px; opacity: 0.65; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.03); }
@@ -179,8 +203,8 @@
         <div class="intelSub">Global Intelligence Monitoring System</div>
       </div>
       <div class="intelTabs">
-        <button id="tabFeed" class="tabBtn tabActive">Feed</button>
-        <button id="tabNotes" class="tabBtn">Notes</button>
+        <button id="tabFeed" class="tabBtn tabActive" type="button">Feed</button>
+        <button id="tabNotes" class="tabBtn" type="button">Notes</button>
       </div>
     </div>
 
@@ -189,6 +213,12 @@
       <div class="card">
         <div class="cardTitle">NEW ENTRY</div>
 
+        <!-- Title -->
+        <label class="field">
+          <div class="fieldLabel">Title</div>
+          <input id="entryTitle" placeholder="Short headline..." />
+        </label>
+
         <div class="row2">
           <label class="field">
             <div class="fieldLabel">Date</div>
@@ -196,7 +226,7 @@
           </label>
 
           <label class="field">
-            <div class="fieldLabel">Type</div>
+            <div class="fieldLabel">Category</div>
             <select id="entryType">
               <option value="Event">Event</option>
               <option value="Military">Military</option>
@@ -209,9 +239,22 @@
           </label>
         </div>
 
+        <!-- Location fields -->
+        <div class="row2">
+          <label class="field">
+            <div class="fieldLabel">Country</div>
+            <input id="entryCountry" placeholder="United States, China..." />
+          </label>
+
+          <label class="field">
+            <div class="fieldLabel">Province / State</div>
+            <input id="entryProvince" placeholder="California, Guangdong..." />
+          </label>
+        </div>
+
         <label class="field">
-          <div class="fieldLabel">Country (text for now)</div>
-          <input id="entryCountry" placeholder="United States, China, Russia..." />
+          <div class="fieldLabel">City</div>
+          <input id="entryCity" placeholder="San Diego, Shenzhen..." />
         </label>
 
         <label class="field">
@@ -224,8 +267,12 @@
           <textarea id="entryText" rows="5" placeholder="Enter briefing details..."></textarea>
         </label>
 
-        <button id="addToFeedBtn" class="primaryBtn">+ Add to Feed</button>
-        <div class="hint">Later: this can link to the selected map object.</div>
+        <!-- Pick point -->
+        <button id="pickPointBtn" class="primaryBtn" type="button">📍 Pick Map Point</button>
+        <div id="pickedPointStatus" class="hint">No point selected.</div>
+
+        <button id="addToFeedBtn" class="primaryBtn" type="button">+ Add to Feed</button>
+        <div class="hint">Tip: click a marker first to link this entry to that marker.</div>
       </div>
 
       <div class="card">
@@ -233,8 +280,9 @@
           <div class="cardTitle">FEED</div>
 
           <div class="feedFilters">
+            <!-- Category filter -->
             <select id="filterType">
-              <option value="ALL">All Types</option>
+              <option value="ALL">All Categories</option>
               <option value="Event">Event</option>
               <option value="Military">Military</option>
               <option value="Tech">Tech</option>
@@ -244,7 +292,13 @@
               <option value="Other">Other</option>
             </select>
 
-            <input id="searchBox" placeholder="Search..." />
+            <!-- Location filters -->
+            <input id="filterCountry" placeholder="Country filter..." />
+            <input id="filterProvince" placeholder="Province filter..." />
+            <input id="filterCity" placeholder="City filter..." />
+
+            <!-- Keyword search -->
+            <input id="searchBox" placeholder='Search keywords (e.g. "microchip")...' />
           </div>
         </div>
 
@@ -272,7 +326,7 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
   <!-- Your app last -->
-  <script src="./app.js?v=999"></script>
+  <script src="./app.js?v=1001"></script>
 
   <!-- Tiny UI wiring (tabs + default date) -->
   <script>
