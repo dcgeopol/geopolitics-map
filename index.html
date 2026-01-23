@@ -7,12 +7,21 @@
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Leaflet.Draw CSS -->
+
+  <!-- ✅ Leaflet.Draw CSS (FIXED: use leaflet-draw package) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 
   <style>
     body { margin: 0; font-family: sans-serif; }
-    #map { height: 100vh; width: 100vw; }
+
+    /* ✅ FIX: map stops before the 380px right panel */
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 380px;  /* matches #intelPanel width */
+      bottom: 0;
+    }
 
     /* Date picker */
     #date {
@@ -40,10 +49,10 @@
       font-weight:700;
     }
     #toggleStyle{ left: 260px; }
-    #undoBtn{     left: 330px; }
-    #redoBtn{     left: 400px; }
+    #undoBtn{ left: 330px; }
+    #redoBtn{ left: 400px; }
     #freeDrawBtn{ left: 470px; }
-    #moveBtn{     left: 600px; }
+    #moveBtn{ left: 600px; }
 
     /* Keep Leaflet controls above intel panel */
     .leaflet-top.leaflet-left { z-index: 1000; }
@@ -54,10 +63,10 @@
     /* Style panel: sits BELOW the button row and LEFT of the intel panel */
     #stylePanel{
       position:absolute;
-      top:95px;            /* below the 50px buttons */
+      top:95px; /* below the 50px buttons */
       left:260px;
       right:auto;
-      z-index:980;         /* above intel panel */
+      z-index:980; /* above intel panel */
       background: rgba(255,255,255,0.95);
       padding:10px;
       border-radius:12px;
@@ -66,9 +75,8 @@
       flex-wrap:wrap;
       align-items:center;
       font-size:12px;
-     max-width: calc(100vw - 380px - 30px); /* 380 = intel panel width, 30 = padding buffer */
-overflow: auto;
-
+      max-width: calc(100vw - 380px - 30px); /* leave room for right panel */
+      overflow: auto;
       border: 1px solid rgba(0,0,0,0.10);
       box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
@@ -85,7 +93,7 @@ overflow: auto;
       width: 380px;
       height: 100vh;
       overflow: auto;
-      z-index: 700;  /* BELOW leaflet controls + style panel */
+      z-index: 700; /* BELOW leaflet controls + style panel */
       background: rgba(255,255,255,0.96);
       border-left: 1px solid rgba(0,0,0,0.10);
       box-shadow: -8px 0 24px rgba(0,0,0,0.08);
@@ -116,6 +124,7 @@ overflow: auto;
       padding: 10px;
       margin-bottom: 10px;
     }
+
     .cardTitle{ font-weight: 900; font-size: 12px; letter-spacing: 0.04em; opacity: 0.8; margin-bottom: 8px; }
 
     .field{ display:block; margin-bottom: 8px; }
@@ -162,9 +171,7 @@ overflow: auto;
     #filterType{ width: 140px; }
 
     /* New filters */
-    #filterCountry, #filterProvince, #filterCity {
-      width: 140px;
-    }
+    #filterCountry, #filterProvince, #filterCity { width: 140px; }
 
     #searchBox{
       flex:1;
@@ -270,7 +277,7 @@ overflow: auto;
         </label>
 
         <!-- Pick point -->
-        <button id="pickPointBtn" class="primaryBtn" type="button">📍 Pick Map Point</button>
+        <button id="pickPointBtn" class="primaryBtn" type="button"> Pick Map Point</button>
         <div id="pickedPointStatus" class="hint">No point selected.</div>
 
         <button id="addToFeedBtn" class="primaryBtn" type="button">+ Add to Feed</button>
@@ -325,6 +332,8 @@ overflow: auto;
 
   <!-- ✅ Scripts (correct order) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ✅ Leaflet.Draw JS (FIXED: use leaflet-draw package) -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
   <!-- Your app last -->
