@@ -10,6 +10,7 @@
 
 
 
+
   <style>
     body { margin: 0; font-family: sans-serif; }
     #map { height: 100vh; width: 100vw; }
@@ -251,9 +252,14 @@
 
   <div id="map"></div>
 
+<!-- Leaflet FIRST -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.draw@1.0.4/dist/leaflet.draw.js"></script>
-<script src="./app.js?v=1"></script>
+
+<!-- Leaflet.draw SECOND -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<!-- Your app LAST -->
+<script src="./app.js?v=1000"></script>
 
 
 
