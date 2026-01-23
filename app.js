@@ -171,19 +171,15 @@ map.on("click", (e) => {
       popupAnchor: [0, -40],
     });
   }
-
-  function setMarkerLabel(marker, text) {
-    marker.__label = (text || "").trim();
-    marker.unbindTooltip();
-    if (marker.__label) {
-      marker.bindTooltip(marker.__label, {
-        permanent: true,
-        direction: "top",
-        offset: [0, -38],
-        className: "marker-label",
-      }).openTooltip();
-    }
+function setMarkerLabel(marker, text) {
+  marker.__label = (text || "").trim();
+  if (!marker.__label) {
+    marker.unbindPopup();
+    return;
   }
+  marker.bindPopup(marker.__label, { closeButton: true, autoClose: true, closeOnClick: true });
+}
+
 
   function applyStyle(layer) {
     if (!layer) return;
@@ -224,6 +220,72 @@ map.on("click", (e) => {
      Draw layers (Leaflet.draw)
   --------------------------- */
   const drawnItems = new L.FeatureGroup().addTo(map);
+   function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function refreshLinkedMarkerPopups() {
+  const feed = (typeof getFeed === "function") ? getFeed() : [];
+  if (!drawnItems) return;
+
+  // group entries by linkedLayerId
+  const byLayer = new Map();
+  for (const it of feed) {
+    if (!it || !it.linkedLayerId) continue;
+    if (!byLayer.has(it.linkedLayerId)) byLayer.set(it.linkedLayerId, []);
+    byLayer.get(it.linkedLayerId).push(it);
+  }
+
+  // sort each group newest first
+  for (const [k, arr] of byLayer.entries()) {
+    arr.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  }
+
+  drawnItems.eachLayer((layer) => {
+    if (!(layer instanceof L.Marker)) return;
+
+    // make sure marker has an id
+    if (!layer.__id && typeof uid === "function") layer.__id = uid();
+
+    // remove any tooltip that might be forcing text to show
+    if (layer.getTooltip && layer.getTooltip()) {
+      layer.unbindTooltip();
+    }
+
+    const list = byLayer.get(layer.__id) || [];
+
+    // If no linked entries, remove popup (optional)
+    if (list.length === 0) {
+      if (layer.getPopup && layer.getPopup()) layer.unbindPopup();
+      return;
+    }
+
+    const html = `
+      <div style="font-family:sans-serif; max-width:260px;">
+        <div style="font-weight:900; font-size:14px; margin-bottom:6px;">
+          ${escapeHtml(list[0].title || "(Untitled)")}
+        </div>
+        <div style="font-size:12px; opacity:0.75; margin-bottom:8px;">
+          ${escapeHtml(list[0].date || "")} • ${escapeHtml(list[0].type || "")}
+          ${list[0].country ? " • " + escapeHtml(list[0].country) : ""}
+        </div>
+        <div style="font-size:12px; white-space:pre-wrap;">
+          ${escapeHtml(list[0].text || "")}
+        </div>
+        ${list.length > 1 ? `<div style="margin-top:8px; font-size:11px; opacity:0.65;">+ ${list.length - 1} more linked entries</div>` : ""}
+      </div>
+    `;
+
+    // Click-only popup
+    layer.bindPopup(html, { closeButton: true, autoClose: true, closeOnClick: true });
+  });
+}
+
 
   // IMPORTANT: edit/remove ON (this restores the edit tools)
   const drawControl = new L.Control.Draw({
@@ -957,100 +1019,99 @@ if (pickPointBtn) {
   }
 
   function renderFeed() {
-    if (!feedList) return;
+  if (!feedList) return;
 
-    const feed = getFeed().slice();
+  const feed = getFeed().slice();
 
-    // newest first by date (then createdAt)
-    feed.sort((a, b) => {
-      const ad = (a.date || "") + (a.createdAt || "");
-      const bd = (b.date || "") + (b.createdAt || "");
-      return bd.localeCompare(ad);
-    });
+  // newest first by date (then createdAt)
+  feed.sort((a, b) => {
+    const ad = (a.date || "") + (a.createdAt || "");
+    const bd = (b.date || "") + (b.createdAt || "");
+    return bd.localeCompare(ad);
+  });
 
-   const typeFilter = filterType?.value || "ALL";
-const q = (searchBox?.value || "").trim().toLowerCase();
+  const typeFilter = filterType?.value || "ALL";
+  const q = (searchBox?.value || "").trim().toLowerCase();
 
-const fc = (filterCountry?.value || "").trim().toLowerCase();
-const fp = (filterProvince?.value || "").trim().toLowerCase();
-const fcity = (filterCity?.value || "").trim().toLowerCase();
+  const fc = (filterCountry?.value || "").trim().toLowerCase();
+  const fp = (filterProvince?.value || "").trim().toLowerCase();
+  const fcity = (filterCity?.value || "").trim().toLowerCase();
 
-const filtered = feed.filter((x) => {
-  if (typeFilter !== "ALL" && x.type !== typeFilter) return false;
+  const filtered = feed.filter((x) => {
+    if (typeFilter !== "ALL" && x.type !== typeFilter) return false;
 
-  if (fc && !(x.country || "").toLowerCase().includes(fc)) return false;
-  if (fp && !(x.province || "").toLowerCase().includes(fp)) return false;
-  if (fcity && !(x.city || "").toLowerCase().includes(fcity)) return false;
+    if (fc && !(x.country || "").toLowerCase().includes(fc)) return false;
+    if (fp && !(x.province || "").toLowerCase().includes(fp)) return false;
+    if (fcity && !(x.city || "").toLowerCase().includes(fcity)) return false;
 
-  if (!q) return true;
+    if (!q) return true;
 
-  const hay =
-    `${x.title || ""} ${x.type || ""} ${x.country || ""} ${x.province || ""} ${x.city || ""} ${(x.tags || []).join(",")} ${x.text || ""}`
-      .toLowerCase();
+    const hay =
+      `${x.title || ""} ${x.type || ""} ${x.country || ""} ${x.province || ""} ${x.city || ""} ${(x.tags || []).join(",")} ${x.text || ""}`
+        .toLowerCase();
 
-  return hay.includes(q);
-});
+    return hay.includes(q);
+  });
 
-    feedList.innerHTML = "";
+  feedList.innerHTML = "";
 
-    if (filtered.length === 0) {
-      const div = document.createElement("div");
-      div.className = "emptyState";
-      div.textContent = "No entries yet.";
-      feedList.appendChild(div);
-      return;
-    }
-
-    filtered.forEach((x) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.style.cursor = x.linkedLayerId ? "pointer" : "default";
-
-      const title = document.createElement("div");
-      title.className = "cardTitle";
-      title.textContent = `${x.date || ""} • ${x.type || "Other"} • ${x.country || ""}`.trim();
-
-      const body = document.createElement("div");
-      body.style.fontSize = "13px";
-      body.style.whiteSpace = "pre-wrap";
-      body.textContent = x.text || "";
-
-      const tags = document.createElement("div");
-      tags.style.marginTop = "8px";
-      tags.style.fontSize = "12px";
-      tags.style.opacity = "0.7";
-      tags.textContent = (x.tags && x.tags.length) ? `Tags: ${x.tags.join(", ")}` : "";
-
-      card.appendChild(title);
-      card.appendChild(body);
-      if (tags.textContent) card.appendChild(tags);
-
-      if (x.linkedLayerId) {
-        card.addEventListener("click", () => {
-          let found = null;
-          drawnItems.eachLayer((lyr) => {
-            if (lyr.__id === x.linkedLayerId) found = lyr;
-          });
-          if (!found) return;
-
-          selectLayer(found);
-
-          // zoom to layer
-          if (found instanceof L.Marker) {
-            map.setView(found.getLatLng(), Math.max(map.getZoom(), 5));
-          } else if (found instanceof L.Circle) {
-            map.fitBounds(found.getBounds(), { padding: [40, 40] });
-          } else if (found.getBounds) {
-            map.fitBounds(found.getBounds(), { padding: [40, 40] });
-          }
-
-          if (moveEnabled) showTransformHandles();
-        });
-      }
-
-      feedList.appendChild(card);
-    });
+  if (filtered.length === 0) {
+    const div = document.createElement("div");
+    div.className = "emptyState";
+    div.textContent = (feed.length === 0) ? "No entries yet." : "No matches found.";
+    feedList.appendChild(div);
+    return;
   }
+
+  filtered.forEach((x) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.cursor = x.linkedLayerId ? "pointer" : "default";
+
+    // TITLE (this is the missing piece)
+    const titleLine = document.createElement("div");
+    titleLine.style.fontWeight = "900";
+    titleLine.style.fontSize = "14px";
+    titleLine.style.marginBottom = "4px";
+    titleLine.textContent = (x.title && x.title.trim()) ? x.title.trim() : "(Untitled)";
+
+    // META LINE (date • category • location)
+    const parts = [];
+    if (x.date) parts.push(x.date);
+    if (x.type) parts.push(x.type);
+
+    // Build a nicer location string
+    const locParts = [];
+    if (x.country) locParts.push(x.country);
+    if (x.province) locParts.push(x.province);
+    if (x.city) locParts.push(x.city);
+    if (locParts.length) parts.push(locParts.join(", "));
+
+    const meta = document.createElement("div");
+    meta.className = "cardTitle";
+    meta.textContent = parts.join(" • ");
+
+    const body = document.createElement("div");
+    body.style.fontSize = "13px";
+    body.style.whiteSpace = "pre-wrap";
+    body.textContent = x.text || "";
+
+    const tags = document.createElement("div");
+    tags.style.marginTop = "8px";
+    tags.style.fontSize = "12px";
+    tags.style.opacity = "0.7";
+    tags.textContent = (x.tags && x.tags.length) ? `Tags: ${x.tags.join(", ")}` : "";
+
+    card.appendChild(titleLine);
+    card.appendChild(meta);
+    card.appendChild(body);
+    if (tags.textContent) card.appendChild(tags);
+
+    if (x.linkedLayerId) {
+      card.addEventListener("click", () => {
+        let found = null;
+        drawnItems.eachLa
+
 
   function renderNotesPanel() {
     if (!notesBody) return;
@@ -1172,27 +1233,37 @@ if (addToFeedBtn) {
     }
 
     // If no selected marker, but user picked a map point, create a marker there
-    if (!linkedLayerId && pickedPoint) {
-      const m = L.marker(pickedPoint);
+    // Create a marker at the picked point (optional)
+if (!linkedLayerId && pickedPoint) {
+  const m = L.marker(pickedPoint, { draggable: false });
 
-      // give the new marker a stable id so we can link entries to it
-      m.__id = uid();
+  // give the new marker a stable id so we can link entries to it
+  m.__id = uid();
 
-      // add marker to map data
-      drawnItems.addLayer(m);
+  // IMPORTANT: make it look exactly like a Draw-marker (your SVG pin)
+  // (applyStyle() already uses makePinIcon + stores __markerColor/__markerOpacity)
+  if (typeof applyStyle === "function") applyStyle(m);
 
-      // make it selectable if your function exists
-      if (typeof wireSelectable === "function") wireSelectable(m);
+  // safety: never show persistent tooltip text on markers
+  if (m.getTooltip && m.getTooltip()) m.unbindTooltip();
 
-      linkedLayerId = m.__id;
+  // add marker to map data
+  drawnItems.addLayer(m);
 
-      // clear pick point preview
-      pickedPoint = null;
-      if (pickedPointPreview) {
-        pickedPointPreview.remove();
-        pickedPointPreview = null;
-      }
-      setPickedPointStatus();
+  // make it selectable
+  if (typeof wireSelectable === "function") wireSelectable(m);
+  if (typeof selectLayer === "function") selectLayer(m);
+
+  linkedLayerId = m.__id;
+
+  // clear pick point preview
+  pickedPoint = null;
+  if (pickedPointPreview) {
+    pickedPointPreview.remove();
+    pickedPointPreview = null;
+  }
+  setPickedPointStatus();
+}
 
       // If you have history, record marker creation
       if (typeof pushHistory === "function") pushHistory();
