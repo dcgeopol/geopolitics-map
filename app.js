@@ -1313,7 +1313,7 @@ if (!linkedLayerId && pickedPoint) {
       refreshLinkedMarkerPopups();
     }
   };
-
+      }
 
 
   if (filterType) filterType.addEventListener("change", renderFeed);
