@@ -2,29 +2,49 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GeoTracker</title>
 
-  <!-- ✅ Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- ✅ Leaflet.Draw CSS (correct package: leaflet-draw) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Leaflet.Draw CSS (correct package name) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
 
   <style>
-    body { margin: 0; font-family: sans-serif; }
+    html, body { height: 100%; margin: 0; font-family: sans-serif; }
 
-    /* ✅ Map takes all space LEFT of the intel panel */
+    :root { --panelW: 380px; }
+
+    /* MAP ALWAYS VISIBLE (left side) */
     #map{
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
-      right: 380px;  /* MUST match #intelPanel width */
+      right: var(--panelW);
       bottom: 0;
+      background: #ddd; /* makes it obvious if tiles fail */
+    }
+
+    /* RIGHT PANEL */
+    #intelPanel{
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: var(--panelW);
+      height: 100vh;
+      overflow: auto;
+      z-index: 700;
+      background: rgba(255,255,255,0.96);
+      border-left: 1px solid rgba(0,0,0,0.10);
+      box-shadow: -8px 0 24px rgba(0,0,0,0.08);
+      padding: 12px;
+      box-sizing: border-box;
     }
 
     /* Date picker */
     #date {
-      position: absolute;
+      position: fixed;
       top: 10px;
       left: 120px;
       z-index: 950;
@@ -37,15 +57,15 @@
 
     /* Buttons row */
     #toggleStyle, #undoBtn, #redoBtn, #freeDrawBtn, #moveBtn{
-      position:absolute;
-      top:50px;
-      z-index:950;
-      padding:6px 10px;
-      border-radius:10px;
-      border:1px solid #ccc;
+      position: fixed;
+      top: 50px;
+      z-index: 950;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
       background: rgba(255,255,255,0.95);
-      cursor:pointer;
-      font-weight:700;
+      cursor: pointer;
+      font-weight: 700;
     }
     #toggleStyle{ left: 260px; }
     #undoBtn{ left: 330px; }
@@ -53,57 +73,35 @@
     #freeDrawBtn{ left: 470px; }
     #moveBtn{ left: 600px; }
 
-    /* Keep Leaflet controls above intel panel */
-    .leaflet-top.leaflet-left { z-index: 1000; }
-    .leaflet-top.leaflet-right { z-index: 1000; }
-    .leaflet-bottom.leaflet-left { z-index: 1000; }
-    .leaflet-bottom.leaflet-right { z-index: 1000; }
+    /* Leaflet controls above panel */
+    .leaflet-top, .leaflet-bottom { z-index: 1000 !important; }
 
     /* Style panel (won't overlap right panel) */
     #stylePanel{
-      position:absolute;
-      top:95px;
-      left:260px;
-      right:auto;
-      z-index:980;
+      position: fixed;
+      top: 95px;
+      left: 260px;
+      z-index: 980;
       background: rgba(255,255,255,0.95);
-      padding:10px;
-      border-radius:12px;
-      display:none;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      font-size:12px;
-      max-width: calc(100vw - 380px - 30px);
-      overflow:auto;
+      padding: 10px;
+      border-radius: 12px;
+      display: none;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 12px;
+      max-width: calc(100vw - var(--panelW) - 30px);
+      overflow: auto;
       border: 1px solid rgba(0,0,0,0.10);
       box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
 
-    /* ==========================
-       RIGHT PANEL: Intel + Notes
-       ========================== */
-    #intelPanel{
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 380px;
-      height: 100vh;
-      overflow: auto;
-      z-index: 700;
-      background: rgba(255,255,255,0.96);
-      border-left: 1px solid rgba(0,0,0,0.10);
-      box-shadow: -8px 0 24px rgba(0,0,0,0.08);
-      padding: 12px;
-      box-sizing: border-box;
-    }
-
+    /* Panel UI */
     .intelHeader{ display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
     .intelName{ font-weight:900; font-size:18px; }
     .intelSub{ font-size:12px; opacity:0.7; margin-top:2px; }
-
     .intelTabs{ display:flex; gap:8px; }
     .tabBtn{
       padding: 6px 10px;
@@ -124,7 +122,6 @@
       margin-bottom: 10px;
     }
     .cardTitle{ font-weight: 900; font-size: 12px; letter-spacing: 0.04em; opacity: 0.8; margin-bottom: 8px; }
-
     .field{ display:block; margin-bottom: 8px; }
     .fieldLabel{ font-size: 12px; font-weight: 800; opacity: 0.75; margin-bottom: 4px; }
     .field input, .field select, .field textarea{
@@ -135,9 +132,7 @@
       font-size: 13px;
       box-sizing: border-box;
     }
-
     .row2{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
     .primaryBtn{
       width: 100%;
       padding: 10px;
@@ -147,34 +142,20 @@
       font-weight: 900;
       background: rgba(0,0,0,0.06);
     }
-
     .hint{ font-size: 12px; opacity: 0.65; margin-top: 8px; }
-
-    .feedTop{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:8px;
-      margin-bottom:8px;
-    }
-    .feedFilters{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap: wrap;
-      justify-content:flex-end;
-    }
-
+    .feedTop{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:8px; }
+    .feedFilters{ display:flex; gap:8px; align-items:center; flex-wrap: wrap; justify-content:flex-end; }
     #filterType{ width: 140px; }
     #filterCountry, #filterProvince, #filterCity { width: 140px; }
-    #searchBox{ flex:1; min-width: 160px; }
-
+    #searchBox{ flex: 1; min-width: 160px; }
     .feedList{ display:flex; flex-direction:column; gap:8px; }
     .emptyState{ font-size: 12px; opacity: 0.65; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.03); }
   </style>
 </head>
 
 <body>
+  <div id="map"></div>
+
   <input type="date" id="date" />
 
   <button id="toggleStyle">Style</button>
@@ -270,7 +251,6 @@
       <div class="card">
         <div class="feedTop">
           <div class="cardTitle">FEED</div>
-
           <div class="feedFilters">
             <select id="filterType">
               <option value="ALL">All Categories</option>
@@ -305,12 +285,9 @@
     </div>
   </div>
 
-  <!-- ✅ Map must exist BEFORE scripts run -->
-  <div id="map"></div>
-
   <!-- ✅ Scripts MUST be defer + correct order -->
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script defer src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script defer src="./app.js?v=1"></script>
 
   <!-- Tabs + default date -->
