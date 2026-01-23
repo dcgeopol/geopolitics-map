@@ -64,6 +64,21 @@
   window.addEventListener("resize", fixMapSizeHard);
   setTimeout(fixMapSizeHard, 0);
 
+
+
+map.on("click", (e) => {
+  if (!pickingPoint) return;
+
+  pickingPoint = false;
+  pickedPoint = e.latlng;
+
+  if (pickedPointPreview) pickedPointPreview.remove();
+  pickedPointPreview = L.circleMarker(pickedPoint, { radius: 6, weight: 2, fillOpacity: 0.8 }).addTo(map);
+
+  setPickedPointStatus();
+});
+
+
   /* ---------------------------
      DOM
   --------------------------- */
@@ -883,6 +898,43 @@
   const entryCountry = document.getElementById("entryCountry");
   const entryTags = document.getElementById("entryTags");
   const entryText = document.getElementById("entryText");
+const entryTitle = document.getElementById("entryTitle");
+const entryProvince = document.getElementById("entryProvince");
+const entryCity = document.getElementById("entryCity");
+
+const filterCountry = document.getElementById("filterCountry");
+const filterProvince = document.getElementById("filterProvince");
+const filterCity = document.getElementById("filterCity");
+
+const pickPointBtn = document.getElementById("pickPointBtn");
+const pickedPointStatus = document.getElementById("pickedPointStatus");
+    let pickingPoint = false;
+let pickedPoint = null;
+let pickedPointPreview = null;
+
+function setPickedPointStatus() {
+  if (!pickedPointStatus) return;
+  if (!pickedPoint) {
+    pickedPointStatus.textContent = "No point selected.";
+  } else {
+    pickedPointStatus.textContent =
+      `Point selected: ${pickedPoint.lat.toFixed(4)}, ${pickedPoint.lng.toFixed(4)}`;
+  }
+}
+
+if (pickPointBtn) {
+  pickPointBtn.onclick = () => {
+    pickingPoint = true;
+    pickedPoint = null;
+
+    if (pickedPointPreview) {
+      pickedPointPreview.remove();
+      pickedPointPreview = null;
+    }
+
+    if (pickedPointStatus) pickedPointStatus.textContent = "Click the map to pick a point...";
+  };
+}
 
   const feedList = document.getElementById("feedList");
   const filterType = document.getElementById("filterType");
@@ -916,15 +968,28 @@
       return bd.localeCompare(ad);
     });
 
-    const typeFilter = filterType?.value || "ALL";
-    const q = (searchBox?.value || "").trim().toLowerCase();
+   const typeFilter = filterType?.value || "ALL";
+const q = (searchBox?.value || "").trim().toLowerCase();
 
-    const filtered = feed.filter((x) => {
-      if (typeFilter !== "ALL" && x.type !== typeFilter) return false;
-      if (!q) return true;
-      const hay = `${x.type} ${x.country} ${x.tags?.join(",") || ""} ${x.text}`.toLowerCase();
-      return hay.includes(q);
-    });
+const fc = (filterCountry?.value || "").trim().toLowerCase();
+const fp = (filterProvince?.value || "").trim().toLowerCase();
+const fcity = (filterCity?.value || "").trim().toLowerCase();
+
+const filtered = feed.filter((x) => {
+  if (typeFilter !== "ALL" && x.type !== typeFilter) return false;
+
+  if (fc && !(x.country || "").toLowerCase().includes(fc)) return false;
+  if (fp && !(x.province || "").toLowerCase().includes(fp)) return false;
+  if (fcity && !(x.city || "").toLowerCase().includes(fcity)) return false;
+
+  if (!q) return true;
+
+  const hay =
+    `${x.title || ""} ${x.type || ""} ${x.country || ""} ${x.province || ""} ${x.city || ""} ${(x.tags || []).join(",")} ${x.text || ""}`
+      .toLowerCase();
+
+  return hay.includes(q);
+});
 
     feedList.innerHTML = "";
 
@@ -1093,33 +1158,99 @@
     });
   }
 
-  if (addToFeedBtn) {
-    addToFeedBtn.onclick = () => {
-      const item = {
-        id: uid(),
-        createdAt: new Date().toISOString(),
-        date: entryDate?.value || new Date().toISOString().slice(0, 10),
-        type: entryType?.value || "Other",
-        country: (entryCountry?.value || "").trim(),
-        tags: (entryTags?.value || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        text: (entryText?.value || "").trim(),
-        linkedLayerId: (selectedLayer && selectedLayer.__id) ? selectedLayer.__id : null,
-      };
+if (addToFeedBtn) {
+  addToFeedBtn.onclick = () => {
 
-      const feed = getFeed();
-      feed.push(item);
-      setFeed(feed);
+    // 1) Decide what this entry is linked to:
+    // - If a marker is selected, link to it
+    // - Else, if you picked a point, create a marker there and link to it
+    let linkedLayerId = null;
 
-      if (entryText) entryText.value = "";
-      renderFeed();
+    // Link only to markers (because markers show popup on click)
+    if (selectedLayer && selectedLayer instanceof L.Marker && selectedLayer.__id) {
+      linkedLayerId = selectedLayer.__id;
+    }
+
+    // If no selected marker, but user picked a map point, create a marker there
+    if (!linkedLayerId && pickedPoint) {
+      const m = L.marker(pickedPoint);
+
+      // give the new marker a stable id so we can link entries to it
+      m.__id = uid();
+
+      // add marker to map data
+      drawnItems.addLayer(m);
+
+      // make it selectable if your function exists
+      if (typeof wireSelectable === "function") wireSelectable(m);
+
+      linkedLayerId = m.__id;
+
+      // clear pick point preview
+      pickedPoint = null;
+      if (pickedPointPreview) {
+        pickedPointPreview.remove();
+        pickedPointPreview = null;
+      }
+      setPickedPointStatus();
+
+      // If you have history, record marker creation
+      if (typeof pushHistory === "function") pushHistory();
+    }
+
+    // 2) Build the entry
+    const item = {
+      id: uid(),
+      createdAt: new Date().toISOString(),
+      date: entryDate?.value || new Date().toISOString().slice(0, 10),
+
+      title: (entryTitle?.value || "").trim(),
+      type: entryType?.value || "Other",
+
+      country: (entryCountry?.value || "").trim(),
+      province: (entryProvince?.value || "").trim(),
+      city: (entryCity?.value || "").trim(),
+
+      tags: (entryTags?.value || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+
+      text: (entryText?.value || "").trim(),
+
+      linkedLayerId: linkedLayerId
     };
-  }
+
+    // 3) Save to feed
+    const feed = getFeed();
+    feed.push(item);
+    setFeed(feed);
+
+    // 4) Clear inputs
+    if (entryTitle) entryTitle.value = "";
+    if (entryCountry) entryCountry.value = "";
+    if (entryProvince) entryProvince.value = "";
+    if (entryCity) entryCity.value = "";
+    if (entryTags) entryTags.value = "";
+    if (entryText) entryText.value = "";
+
+    // 5) Re-render UI
+    renderFeed();
+
+    // 6) Update marker popups if you implemented it
+    if (typeof refreshLinkedMarkerPopups === "function") {
+      refreshLinkedMarkerPopups();
+    }
+  };
+}
+
 
   if (filterType) filterType.addEventListener("change", renderFeed);
   if (searchBox) searchBox.addEventListener("input", renderFeed);
+   if (filterCountry) filterCountry.addEventListener("input", renderFeed);
+if (filterProvince) filterProvince.addEventListener("input", renderFeed);
+if (filterCity) filterCity.addEventListener("input", renderFeed);
+
 
   // First render
   renderFeed();
