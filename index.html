@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Geopolitical Map</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GeoTracker</title>
 
-  <!-- ✅ MUST HAVE Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-
-
-
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet.Draw CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 
   <style>
     body { margin: 0; font-family: sans-serif; }
@@ -20,69 +19,80 @@
       position: absolute;
       top: 10px;
       left: 120px;
-      z-index: 500;
+      z-index: 950;
       padding: 4px;
       font-size: 14px;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 10px;
     }
 
-    /* Buttons */
+    /* Buttons row */
     #toggleStyle, #undoBtn, #redoBtn, #freeDrawBtn, #moveBtn{
       position:absolute;
       top:50px;
-      z-index:700;
-      padding:4px 8px;
+      z-index:950;
+      padding:6px 10px;
       border-radius:10px;
       border:1px solid #ccc;
       background: rgba(255,255,255,0.95);
       cursor:pointer;
+      font-weight:700;
     }
-
     #toggleStyle{ left: 260px; }
     #undoBtn{     left: 330px; }
     #redoBtn{     left: 400px; }
     #freeDrawBtn{ left: 470px; }
-    #moveBtn{     left: 580px; }
+    #moveBtn{     left: 600px; }
 
-    /* Keep Leaflet controls above other elements */
-    .leaflet-top.leaflet-left { z-index: 900; }
+    /* Keep Leaflet controls above intel panel */
+    .leaflet-top.leaflet-left { z-index: 1000; }
+    .leaflet-top.leaflet-right { z-index: 1000; }
+    .leaflet-bottom.leaflet-left { z-index: 1000; }
+    .leaflet-bottom.leaflet-right { z-index: 1000; }
 
-    /* Style panel */
+    /* Style panel: sits BELOW the button row and LEFT of the intel panel */
     #stylePanel{
       position:absolute;
-      top:10px;
-      z-index: 9999;
-      right: 380px;   /* pushes it left so it doesn’t sit under the intel panel */
+      top:95px;            /* below the 50px buttons */
+      left:260px;
+      right:auto;
+      z-index:980;         /* above intel panel */
       background: rgba(255,255,255,0.95);
-      padding:8px;
-      border-radius:10px;
+      padding:10px;
+      border-radius:12px;
       display:none;
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
       font-size:12px;
-      max-width: min(720px, calc(100vw - 20px));
+      max-width: min(720px, calc(100vw - 420px)); /* leave room for right panel */
+      border: 1px solid rgba(0,0,0,0.10);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
     #stylePanel label{ display:flex; gap:6px; align-items:center; }
     #stylePanel input[type="number"]{ width:70px; }
 
-    /* RIGHT PANEL */
+    /* ==========================
+       RIGHT PANEL: Intel + Notes
+       ========================== */
     #intelPanel{
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 360px;
-      max-height: calc(100vh - 20px);
+      top: 0;
+      right: 0;
+      width: 380px;
+      height: 100vh;
       overflow: auto;
-      z-index: 850;
+      z-index: 700;  /* BELOW leaflet controls + style panel */
       background: rgba(255,255,255,0.96);
-      border: 1px solid rgba(0,0,0,0.08);
-      border-radius: 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      border-left: 1px solid rgba(0,0,0,0.10);
+      box-shadow: -8px 0 24px rgba(0,0,0,0.08);
       padding: 12px;
+      box-sizing: border-box;
     }
 
     .intelHeader{ display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
-    .intelName{ font-weight:800; font-size:18px; }
+    .intelName{ font-weight:900; font-size:18px; }
     .intelSub{ font-size:12px; opacity:0.7; margin-top:2px; }
 
     .intelTabs{ display:flex; gap:8px; }
@@ -93,7 +103,7 @@
       background: rgba(255,255,255,0.9);
       cursor: pointer;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
     }
     .tabActive{ background: rgba(0,0,0,0.06); }
 
@@ -104,11 +114,10 @@
       padding: 10px;
       margin-bottom: 10px;
     }
-
     .cardTitle{ font-weight: 900; font-size: 12px; letter-spacing: 0.04em; opacity: 0.8; margin-bottom: 8px; }
 
     .field{ display:block; margin-bottom: 8px; }
-    .fieldLabel{ font-size: 12px; font-weight: 700; opacity: 0.75; margin-bottom: 4px; }
+    .fieldLabel{ font-size: 12px; font-weight: 800; opacity: 0.75; margin-bottom: 4px; }
     .field input, .field select, .field textarea{
       width: 100%;
       padding: 8px;
@@ -133,7 +142,7 @@
     .hint{ font-size: 12px; opacity: 0.65; margin-top: 8px; }
     .feedTop{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
     .feedFilters{ display:flex; gap:8px; align-items:center; }
-    #filterType{ width: 120px; }
+    #filterType{ width: 140px; }
     #searchBox{ flex:1; min-width: 120px; }
 
     .feedList{ display:flex; flex-direction:column; gap:8px; }
@@ -144,12 +153,14 @@
 <body>
   <input type="date" id="date" />
 
+  <!-- top buttons -->
   <button id="toggleStyle">Style</button>
   <button id="undoBtn">Undo</button>
   <button id="redoBtn">Redo</button>
   <button id="freeDrawBtn">Free Draw</button>
   <button id="moveBtn">Move</button>
 
+  <!-- style panel -->
   <div id="stylePanel">
     <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
     <label>Stroke width <input id="strokeWidth" type="number" min="1" max="20" value="4"></label>
@@ -160,19 +171,20 @@
     <label>Fill opacity <input id="fillOpacity" type="number" min="0" max="1" step="0.05" value="0.25"></label>
   </div>
 
+  <!-- right intel panel -->
   <div id="intelPanel">
     <div class="intelHeader">
-      <div class="intelTitle">
+      <div>
         <div class="intelName">GeoTracker</div>
         <div class="intelSub">Global Intelligence Monitoring System</div>
       </div>
-
       <div class="intelTabs">
         <button id="tabFeed" class="tabBtn tabActive">Feed</button>
         <button id="tabNotes" class="tabBtn">Notes</button>
       </div>
     </div>
 
+    <!-- FEED TAB -->
     <div id="feedTab" class="tabBody">
       <div class="card">
         <div class="cardTitle">NEW ENTRY</div>
@@ -213,12 +225,13 @@
         </label>
 
         <button id="addToFeedBtn" class="primaryBtn">+ Add to Feed</button>
-        <div class="hint">Later: this will optionally link to the selected map shape.</div>
+        <div class="hint">Later: this can link to the selected map object.</div>
       </div>
 
       <div class="card">
         <div class="feedTop">
           <div class="cardTitle">FEED</div>
+
           <div class="feedFilters">
             <select id="filterType">
               <option value="ALL">All Types</option>
@@ -241,31 +254,27 @@
       </div>
     </div>
 
+    <!-- NOTES TAB -->
     <div id="notesTab" class="tabBody" style="display:none;">
       <div class="card">
         <div class="cardTitle">NOTES</div>
-        <div class="hint">Click a shape/marker on the map → notes will show here (next step).</div>
+        <div class="hint">Click a map object → notes show here.</div>
         <div id="notesBody" class="emptyState">No object selected.</div>
       </div>
     </div>
   </div>
 
+  <!-- map -->
   <div id="map"></div>
 
-<!-- Leaflet FIRST -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- ✅ Scripts (correct order) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
-<!-- Leaflet.draw SECOND -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <!-- Your app last -->
+  <script src="./app.js?v=999"></script>
 
-<!-- Your app LAST -->
-<script src="./app.js?v=1000"></script>
-
-
-
-
-
-  <!-- UI tabs -->
+  <!-- Tiny UI wiring (tabs + default date) -->
   <script>
     (function () {
       const today = new Date().toISOString().slice(0,10);
