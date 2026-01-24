@@ -220,16 +220,17 @@ function setMarkerLabel(marker, text) {
      Draw layers (Leaflet.draw)
   --------------------------- */
   const drawnItems = new L.FeatureGroup().addTo(map);
-   function escapeHtml(s) {
+
 function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-    .replaceAll("'", "&#39;");
+  let out = String(s ?? "");
+  out = out.replaceAll("&", "&amp;");
+  out = out.replaceAll("<", "&lt;");
+  out = out.replaceAll(">", "&gt;");
+  out = out.replaceAll('"', "&quot;");
+  out = out.replaceAll("'", "&#39;");
+  return out;
 }
+
 
 
 function refreshLinkedMarkerPopups() {
