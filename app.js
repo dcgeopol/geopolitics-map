@@ -201,8 +201,9 @@ function setMarkerLabel(marker, text) {
     if (!layer) return;
 
     if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
-      if (strokeColor) strokeColor.value = layer.__markerColor || (strokeColor.value ?? "#ff0000");
-      if (strokeOpacity) strokeOpacity.value = (layer.__markerOpacity ?? strokeOpacity.value ?? 1);
+      if (strokeColor) strokeColor.value = layer.__markerColor || (strokeColor.value != null ? strokeColor.value : "#ff0000");
+if (strokeOpacity) strokeOpacity.value = (layer.__markerOpacity != null ? layer.__markerOpacity : (strokeOpacity.value != null ? strokeOpacity.value : 1));
+
       return;
     }
 
@@ -222,14 +223,15 @@ function setMarkerLabel(marker, text) {
   const drawnItems = new L.FeatureGroup().addTo(map);
 
 function escapeHtml(s) {
-  let out = String(s ?? "");
-  out = out.replaceAll("&", "&amp;");
-  out = out.replaceAll("<", "&lt;");
-  out = out.replaceAll(">", "&gt;");
-  out = out.replaceAll('"', "&quot;");
-  out = out.replaceAll("'", "&#39;");
+  var out = String(s == null ? "" : s);
+  out = out.replace(/&/g, "&amp;");
+  out = out.replace(/</g, "&lt;");
+  out = out.replace(/>/g, "&gt;");
+  out = out.replace(/"/g, "&quot;");
+  out = out.replace(/'/g, "&#39;");
   return out;
 }
+
 
 
 
@@ -534,7 +536,8 @@ function refreshLinkedMarkerPopups() {
     // Default styling for new shapes
     if (layer instanceof L.Marker && !(layer instanceof L.CircleMarker)) {
       const c = strokeColor?.value ?? "#ff0000";
-      const op = +(strokeOpacity?.value ?? 1);
+     const op = +(strokeOpacity && strokeOpacity.value != null ? strokeOpacity.value : 1);
+
       layer.__markerColor = c;
       layer.__markerOpacity = op;
       layer.setIcon(makePinIcon(c, op));
