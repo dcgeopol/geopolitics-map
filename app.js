@@ -1319,9 +1319,9 @@ if (!linkedLayerId && pickedPoint) {
     if (typeof refreshLinkedMarkerPopups === "function") {
       refreshLinkedMarkerPopups();
     }
-  };
-      })
-      }
+   }; // end addToFeedBtn.onclick
+}    // end if (addToFeedBtn)
+
 
 
   if (filterType) filterType.addEventListener("change", renderFeed);
