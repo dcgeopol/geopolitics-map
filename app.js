@@ -1346,21 +1346,17 @@ if (addToFeedBtn) {
       refreshLinkedMarkerPopups();
     }
   };
-}
+} // end if (addToFeedBtn)
 
-}    // end if (addToFeedBtn)
-
-
-
-  if (filterType) filterType.addEventListener("change", renderFeed);
-  if (searchBox) searchBox.addEventListener("input", renderFeed);
-   if (filterCountry) filterCountry.addEventListener("input", renderFeed);
+if (filterType) filterType.addEventListener("change", renderFeed);
+if (searchBox) searchBox.addEventListener("input", renderFeed);
+if (filterCountry) filterCountry.addEventListener("input", renderFeed);
 if (filterProvince) filterProvince.addEventListener("input", renderFeed);
 if (filterCity) filterCity.addEventListener("input", renderFeed);
 
-
-  // First render
-  renderFeed();
-  renderNotesPanel();
+// First render
+renderFeed();
+renderNotesPanel();
 
 })();
+
