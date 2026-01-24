@@ -1114,11 +1114,40 @@ if (pickPointBtn) {
     card.appendChild(body);
     if (tags.textContent) card.appendChild(tags);
 
-    if (x.linkedLayerId) {
+       if (x.linkedLayerId) {
       card.addEventListener("click", () => {
         let found = null;
-        drawnItems.eachLa
 
+        drawnItems.eachLayer((layer) => {
+          if (layer && layer.__id === x.linkedLayerId) found = layer;
+        });
+
+        if (!found) return;
+
+        // Select and zoom to it
+        selectLayer(found);
+
+        try {
+          if (found.getBounds) {
+            map.fitBounds(found.getBounds(), { padding: [30, 30], maxZoom: 8 });
+          } else if (found.getLatLng) {
+            map.setView(found.getLatLng(), Math.max(map.getZoom(), 6), { animate: true });
+          }
+        } catch (_) {}
+
+        // If it's a marker, open its popup (shows intel details)
+        if (found instanceof L.Marker) {
+          if (found.openPopup) found.openPopup();
+        }
+
+        if (moveEnabled) showTransformHandles();
+        renderNotesPanel();
+      });
+    }
+
+    feedList.appendChild(card);
+  });
+}
 
   function renderNotesPanel() {
     if (!notesBody) return;
@@ -1240,39 +1269,36 @@ if (addToFeedBtn) {
     }
 
     // If no selected marker, but user picked a map point, create a marker there
-    // Create a marker at the picked point (optional)
-if (!linkedLayerId && pickedPoint) {
-  const m = L.marker(pickedPoint, { draggable: false });
+    if (!linkedLayerId && pickedPoint) {
+      const m = L.marker(pickedPoint, { draggable: false });
 
-  // give the new marker a stable id so we can link entries to it
-  m.__id = uid();
+      // give the new marker a stable id so we can link entries to it
+      m.__id = uid();
 
-  // IMPORTANT: make it look exactly like a Draw-marker (your SVG pin)
-  // (applyStyle() already uses makePinIcon + stores __markerColor/__markerOpacity)
-  if (typeof applyStyle === "function") applyStyle(m);
+      // make it look exactly like a Draw-marker (your SVG pin)
+      if (typeof applyStyle === "function") applyStyle(m);
 
-  // safety: never show persistent tooltip text on markers
-  if (m.getTooltip && m.getTooltip()) m.unbindTooltip();
+      // never show persistent tooltip text on markers
+      if (m.getTooltip && m.getTooltip()) m.unbindTooltip();
 
-  // add marker to map data
-  drawnItems.addLayer(m);
+      // add marker to map data
+      drawnItems.addLayer(m);
 
-  // make it selectable
-  if (typeof wireSelectable === "function") wireSelectable(m);
-  if (typeof selectLayer === "function") selectLayer(m);
+      // make it selectable
+      if (typeof wireSelectable === "function") wireSelectable(m);
+      if (typeof selectLayer === "function") selectLayer(m);
 
-  linkedLayerId = m.__id;
+      linkedLayerId = m.__id;
 
-  // clear pick point preview
-  pickedPoint = null;
-  if (pickedPointPreview) {
-    pickedPointPreview.remove();
-    pickedPointPreview = null;
-  }
-  setPickedPointStatus();
-}
+      // clear pick point preview
+      pickedPoint = null;
+      if (pickedPointPreview) {
+        pickedPointPreview.remove();
+        pickedPointPreview = null;
+      }
+      setPickedPointStatus();
 
-      // If you have history, record marker creation
+      // record history for the new marker
       if (typeof pushHistory === "function") pushHistory();
     }
 
@@ -1315,11 +1341,13 @@ if (!linkedLayerId && pickedPoint) {
     // 5) Re-render UI
     renderFeed();
 
-    // 6) Update marker popups if you implemented it
+    // 6) Update marker popups
     if (typeof refreshLinkedMarkerPopups === "function") {
       refreshLinkedMarkerPopups();
     }
-   }; // end addToFeedBtn.onclick
+  };
+}
+
 }    // end if (addToFeedBtn)
 
 
