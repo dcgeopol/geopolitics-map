@@ -102,7 +102,8 @@ map.on("click", (e) => {
     stylePanel.style.top = "90px";
     stylePanel.style.left = "260px";
     stylePanel.style.right = "auto";
-    stylePanel.style.maxWidth = "calc(100vw - 420px)"; // leave room for right intel panel
+   stylePanel.style.maxWidth = "calc(100vw - var(--panelW) - 30px)"; // match index.html panel width
+
     stylePanel.style.zIndex = "860";
   }
 
