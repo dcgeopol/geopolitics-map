@@ -203,6 +203,38 @@
     max-width: calc(100vw - 20px) !important;
   }
 }
+/* MOBILE: wrap top buttons instead of fixed left offsets */
+@media (max-width: 900px){
+  /* keep date usable on small screens (panelToggle is top-right) */
+  #date{
+    left: 10px !important;
+    right: 90px !important;
+    width: auto !important;
+  }
+
+  /* container becomes the layout driver */
+  #topButtons{
+    position: fixed;
+    top: 52px;
+    left: 10px;
+    right: 10px;
+    z-index: 950;
+
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* buttons stop being individually fixed-positioned */
+  #topButtons > button{
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+  }
+}
 
   </style>
 </head>
@@ -212,11 +244,14 @@
 
   <input type="date" id="date" />
 
+<div id="topButtons">
   <button id="toggleStyle">Style</button>
   <button id="undoBtn">Undo</button>
   <button id="redoBtn">Redo</button>
   <button id="freeDrawBtn">Free Draw</button>
   <button id="moveBtn">Move</button>
+</div>
+28
 
   <div id="stylePanel">
     <label>Stroke color <input id="strokeColor" type="color" value="#ff0000"></label>
