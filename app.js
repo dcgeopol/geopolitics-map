@@ -88,6 +88,30 @@ map.on("click", (e) => {
   const redoBtn = document.getElementById("redoBtn");
   const freeDrawBtn = document.getElementById("freeDrawBtn");
   const moveBtn = document.getElementById("moveBtn");
+   // Mobile: intel panel drawer controls
+const intelPanel = document.getElementById("intelPanel");
+const panelToggle = document.getElementById("panelToggle");
+const panelBackdrop = document.getElementById("panelBackdrop");
+
+function setIntelOpen(open) {
+  if (!intelPanel) return;
+  intelPanel.classList.toggle("open", !!open);
+  if (panelBackdrop) panelBackdrop.classList.toggle("show", !!open);
+  // Re-measure map after layout changes
+  if (typeof fixMapSizeHard === "function") fixMapSizeHard();
+}
+
+if (panelToggle) {
+  panelToggle.addEventListener("click", () => {
+    const isOpen = intelPanel && intelPanel.classList.contains("open");
+    setIntelOpen(!isOpen);
+  });
+}
+
+if (panelBackdrop) {
+  panelBackdrop.addEventListener("click", () => setIntelOpen(false));
+}
+
 
   const strokeColor = document.getElementById("strokeColor");
   const strokeWidth = document.getElementById("strokeWidth");
